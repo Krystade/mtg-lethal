@@ -2305,15 +2305,27 @@ input[type="text"] {
   content: "🎨";
   font-size: 1rem;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
 }
 
+/* The native input has to be what the finger lands on. It used to sit under
+   the emoji (the filter made the ::after paint above it) and was sized by its
+   own intrinsic 50x27, so a tap hit the label and only reached the input as a
+   label-forwarded click -- which iOS does not reliably turn into opening the
+   picker once another colour input has held focus. */
 .huedot--wheel input {
   position: absolute;
   inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
   border: none;
   padding: 0;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .huedot--none {

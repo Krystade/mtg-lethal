@@ -18,6 +18,19 @@ interface Props {
  * can come from a wheel, but a player only ever sees six presets, a wheel, and
  * eleven styles.
  */
+/**
+ * Let go of whichever colour input still holds focus before another one opens.
+ * iOS keeps a colour input focused after its popover closes, and a second
+ * colour input tapped while the first is still focused did not open (the
+ * playtest's "secondary, then primary"). Blurring on pointerdown -- before the
+ * click that opens the picker -- leaves the new input as the only candidate.
+ */
+function releaseOtherWheel(e: { currentTarget: HTMLInputElement }) {
+  const active = document.activeElement;
+  if (active instanceof HTMLInputElement && active !== e.currentTarget && active.type === "color")
+    active.blur();
+}
+
 export function LookPicker({ value, onChange, seatColor }: Props) {
   const current = resolveLook(value, seatColor);
   const spec = current.colourSpec;
@@ -72,6 +85,7 @@ export function LookPicker({ value, onChange, seatColor }: Props) {
         >
           <input
             type="color"
+            onPointerDown={releaseOtherWheel}
             value={current.base}
             onChange={(e) => setPrimary(e.target.value.toLowerCase())}
             aria-label="custom colour"
@@ -112,6 +126,7 @@ export function LookPicker({ value, onChange, seatColor }: Props) {
             >
               <input
                 type="color"
+                onPointerDown={releaseOtherWheel}
                 value={secondary?.startsWith("#") ? secondary : "#888888"}
                 onChange={(e) => setSecondary(e.target.value.toLowerCase())}
                 aria-label="custom second colour"
