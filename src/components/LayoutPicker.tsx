@@ -2,8 +2,20 @@ import { useMemo, useState } from "react";
 import { useStore } from "../state/store";
 import { colorForSeat } from "../layout/colors";
 import { allBuiltInPresets } from "../layout/presets";
-import type { LayoutConfig, Placement, Rotation } from "../state/types";
-import { BUILTIN_TEMPLATES, buildFreeLayout, gridApprox, templateSeats, toPts } from "../layout/freeform";
+import type { FreeSeat, LayoutConfig, Placement, Rotation } from "../state/types";
+import {
+  BUILTIN_TEMPLATES,
+  MAX_SEATS,
+  NOMINAL_H,
+  NOMINAL_W,
+  buildFreeLayout,
+  gridApprox,
+  seatsFromLayout,
+  templateSeats,
+  toPts,
+} from "../layout/freeform";
+import { cellInfo, powerCells, type Rect } from "../layout/power";
+import { fillSpot } from "../layout/seatFill";
 import { defaultLayoutFor } from "../layout/presets";
 import { useLayoutEdit } from "./layoutEdit";
 import { Thumb } from "./FreeformEditor";
@@ -60,6 +72,80 @@ function Mini({ layout }: { layout: LayoutConfig }) {
   );
 }
 
+/**
+ * Players − N + without going into Edit layout. A freeform board gains a seat
+ * exactly as Edit layout's (+) places one (power-diagram fill) and loses its
+ * last seat, the rest keeping their players; a grid board moves to the preset
+ * for the new count, players kept by seat.
+ */
+function PlayerStepper() {
+  const layout = useStore((s) => s.game.layout);
+  const players = useStore((s) => s.game.players);
+  const applyLayout = useStore((s) => s.applyLayout);
+  const applyFreeform = useStore((s) => s.applyFreeform);
+  const [note, setNote] = useState<string | null>(null);
+  const n = players.length;
+
+  const freeform = (seats: FreeSeat[], W: number, H: number): boolean => {
+    const raw = powerCells(seats);
+    if (raw.some((rp) => !cellInfo(rp, W, H).ok)) return false;
+    const facings = seats.map((s, i) => s.rot ?? cellInfo(raw[i], W, H).auto);
+    const ids = new Set(players.map((p) => p.id));
+    applyFreeform(
+      buildFreeLayout(seats, "Freeform", facings),
+      seats.map((s) => (ids.has(s.playerId) ? s.playerId : null)),
+    );
+    return true;
+  };
+
+  const change = (delta: 1 | -1) => {
+    const next = n + delta;
+    if (next < 1 || next > MAX_SEATS) return;
+    setNote(null);
+    if (!layout.cells) {
+      applyLayout(defaultLayoutFor(next));
+      return;
+    }
+    // The board is behind the overlay; its size decides the px gaps and how
+    // much room a cell needs.
+    const r = document.querySelector(".board")?.getBoundingClientRect();
+    const W = r && r.width > 0 ? r.width : NOMINAL_W;
+    const H = r && r.height > 0 ? r.height : NOMINAL_H;
+    const seats = seatsFromLayout(layout);
+    if (delta < 0) {
+      const lastId = players[players.length - 1].id;
+      const kept = seats.filter((t) => t.playerId !== lastId);
+      if (!freeform(kept.length === seats.length ? seats.slice(0, -1) : kept, W, H))
+        applyLayout(defaultLayoutFor(next));
+      return;
+    }
+    const px = (t: FreeSeat): Rect => ({ x: t.x * W, y: t.y * H, w: t.w * W, h: t.h * H });
+    const unit = (q: Rect) => ({ x: q.x / W, y: q.y / H, w: q.w / W, h: q.h / H });
+    const fs = fillSpot(seats.map(px), W, H);
+    const grown = fs && [
+      ...seats.map((t, i) => ({ ...t, ...unit(fs.rects[i]) })),
+      { playerId: "new", ...unit(fs.spot), rot: null },
+    ];
+    if (!grown || !freeform(grown, W, H)) setNote("No room for another seat -- try Edit layout.");
+  };
+
+  return (
+    <div className="players-row">
+      <span className="players-row__label">Players</span>
+      <div className="stepper">
+        <button onClick={() => change(-1)} disabled={n <= 1} aria-label="remove player">
+          –
+        </button>
+        <span aria-label="player count">{n}</span>
+        <button onClick={() => change(1)} disabled={n >= MAX_SEATS} aria-label="add player">
+          +
+        </button>
+      </div>
+      {note && <p className="panel__sublabel players-row__note">{note}</p>}
+    </div>
+  );
+}
+
 export function LayoutPicker({ onClose }: Props) {
   const [tab, setTab] = useState<"presets" | "custom">("presets");
   const applyLayout = useStore((s) => s.applyLayout);
@@ -112,6 +198,7 @@ export function LayoutPicker({ onClose }: Props) {
               >
                 ✥ Edit layout (freeform)
               </button>
+              <PlayerStepper />
               <h3>Freeform templates</h3>
               <div className="preset-grid">
                 {[...BUILTIN_TEMPLATES, ...freeTemplates].map((t) => (

@@ -416,6 +416,55 @@ check(s.game.layout.cells?.length === 4 && s.game.players.length === 4, "picker'
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${OUT}/07-board-grid.png` });
 
+// ---- picker: a template switches the board from any pod size, and the
+// Players − N + stepper adds / removes seats without Edit layout ----
+for (const [tpl, from] of [["X", 6], ["X", 2], ["Grid", 3]]) {
+  await page.evaluate((n) => window.__store.getState().newGame({ playerCount: n, startingLife: 40 }), from);
+  await page.locator(".center__hex").tap();
+  await page.getByRole("button", { name: "▦ Layout" }).tap();
+  await page.getByRole("button", { name: `apply template ${tpl}` }).tap();
+  s = await state();
+  check(s.game.layout.name === tpl && s.game.layout.cells?.length === 4 && (await page.locator(".tile").count()) === 4, `template ${tpl} from ${from} players switches the board (${s.game.layout.cells?.length} cells)`);
+}
+await page.evaluate(() => window.__store.getState().adjustLife("p0", -5));
+await page.locator(".center__hex").tap();
+await page.getByRole("button", { name: "▦ Layout" }).tap();
+const cellsOk = () => page.evaluate(() => {
+  const g = window.__store.getState().game;
+  const tiles = [...document.querySelectorAll(".tile")].map((t) => t.getBoundingClientRect());
+  return g.layout.cells?.length === g.players.length && tiles.length === g.players.length && tiles.every((r) => r.width > 40 && r.height > 40);
+});
+for (const want of [5, 6]) {
+  await page.getByRole("button", { name: "add player" }).tap();
+  await page.waitForTimeout(100);
+  s = await state();
+  check(s.game.players.length === want && (await cellsOk()) && s.game.players[0].life === 35 && s.game.players[1].color !== s.game.players[want - 1].color,
+    `stepper + on freeform: ${s.game.players.length} players, ${s.game.layout.cells?.length} cells, p0 keeps 35 (${s.game.players[0].life})`);
+}
+check(await page.getByRole("button", { name: "add player" }).isDisabled(), "stepper + is disabled at 6");
+await page.screenshot({ path: `${OUT}/07b-picker-stepper.png` });
+for (const want of [5, 4, 3]) {
+  await page.getByRole("button", { name: "remove player" }).tap();
+  await page.waitForTimeout(100);
+  s = await state();
+  check(s.game.players.length === want && (await cellsOk()) && s.game.players[0].life === 35, `stepper − on freeform: ${s.game.players.length} players, cells ok, p0 keeps 35`);
+}
+await page.getByRole("button", { name: "close" }).tap();
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${OUT}/07c-board-3-after-stepper.png` });
+// A new seat's life buttons work.
+await page.evaluate(() => window.__store.getState().newGame({ playerCount: 4, startingLife: 40 }));
+await page.evaluate(() => window.__store.getState().applyLayout(window.__store.getState().game.layout)); // grid preset
+await page.locator(".center__hex").tap();
+await page.getByRole("button", { name: "▦ Layout" }).tap();
+await page.getByRole("button", { name: "add player" }).tap();
+s = await state();
+check(s.game.players.length === 5 && !s.game.layout.cells && s.game.layout.id === "builtin-5", `stepper + on a grid board moves to the 5-player preset (${s.game.layout.id})`);
+await page.getByRole("button", { name: "remove player" }).tap();
+s = await state();
+check(s.game.players.length === 4 && s.game.layout.id === "builtin-4", `stepper − on a grid board moves to the 4-player preset (${s.game.layout.id})`);
+await page.getByRole("button", { name: "close" }).tap();
+
 // A grid preset still renders on the CSS grid.
 await page.evaluate(async () => {
   const st = window.__store.getState();

@@ -3750,3 +3750,34 @@ input[type="text"] {
   line-height: 1;
 }
 .fe-thumb { display: block; border-radius: 4px; background: #000; flex: 0 0 auto; }
+
+/* Players − N + in the layout picker, so a template's seat count is not the
+   last word. */
+.players-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin: 8px 0 2px;
+}
+
+.players-row__label {
+  font-weight: 800;
+}
+
+.players-row .stepper span {
+  min-width: 1.4em;
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.players-row .stepper button:disabled {
+  opacity: 0.35;
+}
+
+.players-row__note {
+  flex-basis: 100%;
+  margin: 0;
+}
