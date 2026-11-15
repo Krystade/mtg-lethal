@@ -489,6 +489,25 @@ function signShifts(content: HTMLElement): SignShift | null {
 
 const sameShift = (a: SignShift | null, b: SignShift | null) => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
 
+/**
+ * The life step a press on a + / − zone asks for: the zone's upper half, as
+ * the seat reads its number (the content box is turned to face the seat), is
+ * ±10, the lower half ±1. The glyph sits on the midline, so the line is moved
+ * up by TEN_LINE of its font size: a press on the glyph itself is still ±1,
+ * and the faint "10" above it marks where ±10 starts.
+ */
+const TEN_LINE = 0.3;
+export function lifeStep(e: { currentTarget: HTMLElement; clientX: number; clientY: number }, rotation: number): 1 | 10 {
+  const btn = e.currentTarget;
+  const r = btn.getBoundingClientRect();
+  const a = (rotation * Math.PI) / 180;
+  // Distance toward the top of the number from the zone's centre, in px.
+  const up = (e.clientX - (r.left + r.width / 2)) * Math.sin(a) - (e.clientY - (r.top + r.height / 2)) * Math.cos(a);
+  const sign = btn.querySelector<HTMLElement>(".tile__sign");
+  const em = sign ? parseFloat(getComputedStyle(sign).fontSize) || 0 : 0;
+  return up > TEN_LINE * em ? 10 : 1;
+}
+
 /** A slid glyph's own hit box (see signShifts), inside its button. */
 function SignHitBox({ hit, side }: { hit: SignHit | null | undefined; side: "left" | "right" }) {
   if (!hit) return null;
@@ -636,8 +655,8 @@ export function PlayerTile({
   };
   useEffect(() => cancelLongPress, []);
 
-  const minus = useHoldRepeat(bumpLife, -1, -10);
-  const plus = useHoldRepeat(bumpLife, 1, 10);
+  const minus = useHoldRepeat(bumpLife, (e) => -lifeStep(e, placement.rotation));
+  const plus = useHoldRepeat(bumpLife, (e) => lifeStep(e, placement.rotation));
 
   // Derived before the early return below so the hook call order stays stable
   // (a tile can briefly render without its player while a pod is resized).

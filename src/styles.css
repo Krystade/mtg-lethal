@@ -140,10 +140,26 @@ input {
 }
 
 .tile__sign {
+  position: relative;
   font-size: clamp(2.2rem, 9cqmin, 4.5rem);
   font-weight: 800;
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* The zone's upper half (as the seat reads it) is ±10, the lower ±1 (see
+   PlayerTile lifeStep, which puts the line 0.3em above the glyph's centre).
+   A quiet "10" just above that line says so. */
+.tile__sign::before {
+  content: "10";
+  position: absolute;
+  left: 50%;
+  bottom: calc(50% + 1.5em);
+  translate: -50% 0;
+  font-size: 0.3em;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
 }
 
 /* A big corner disc can slide a glyph up against the number; the zone stops

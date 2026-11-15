@@ -236,5 +236,76 @@ console.log(`${inkBad} of ${inkCases} corner-mode seats have a grown zone on the
   console.log(`${caught ? "ok  " : "FAIL"} control: 5p seat 0 at 3x, + zone at the old uncapped width -> ${r.onZone} number-ink points on it (caught: ${caught})`);
   if (!caught) inkBad++;
 }
-if (bad || tapBad || inkBad) process.exitCode = 1;
+// ---- half zones: the upper half of each + / − zone (as the seat reads it)
+// is ±10, the lower half ±1 ----
+// Real taps at 30% of the zone's height above and below its middle, along the
+// seat's own "up", on every seat of presets 2-6 and the custom layout, with
+// the timer off-corner and in corner mode at 3x (slid glyphs, grown zones,
+// glyph hit boxes). The tap goes at the glyph's x when that point is in the
+// zone, else the first of 50% / 25% / 75% across it that is. Control: on a
+// turned seat, "up" taken as the screen's up must get a wrong amount.
+const halfPoints = (seat, assumeRot) =>
+  page.evaluate(([seat, assumeRot]) => {
+    const tile = document.querySelector(`.tile[data-pid="p${seat}"]`);
+    const content = tile.querySelector(".tile__content");
+    const rot = assumeRot ?? Number(/rotate\((\d+)deg\)/.exec(content.style.transform)?.[1] ?? 0);
+    const a = (rot * Math.PI) / 180;
+    const up = { x: Math.sin(a), y: -Math.cos(a) };
+    const across = { x: Math.cos(a), y: Math.sin(a) };
+    return [...tile.querySelectorAll(".tile__adj")].map((btn) => {
+      const r = btn.getBoundingClientRect();
+      const c = { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+      const lw = btn.offsetWidth, lh = btn.offsetHeight;
+      const g = btn.querySelector(".tile__sign");
+      const rg = document.createRange();
+      rg.selectNodeContents(g);
+      const gq = rg.getBoundingClientRect();
+      const gx = ((gq.left + gq.right) / 2 - c.x) * across.x + ((gq.top + gq.bottom) / 2 - c.y) * across.y;
+      const blocked = new Set();
+      const pick = (k0) => {
+        for (const k of [k0, k0 * 0.7, k0 * 1.4])
+          for (const off of [gx, 0, -0.25 * lw, 0.25 * lw, -0.4 * lw, 0.4 * lw]) {
+            const p = { x: c.x + across.x * off + up.x * k * lh, y: c.y + across.y * off + up.y * k * lh };
+            const el = document.elementFromPoint(p.x, p.y);
+            if (el && el.closest(".tile__adj") === btn) return p;
+            blocked.add(el ? (el.closest(".tile__pill") ? "the timer disc" : el.className || el.tagName) : "nothing");
+          }
+        return null;
+      };
+      const top = pick(0.3), bottom = pick(-0.3);
+      return { sign: btn.classList.contains("tile__adj--plus") ? "+" : "−", rot, top, bottom, blocked: [...blocked], slid: !!g.style.translate };
+    });
+  }, [seat, assumeRot]);
+let halfBad = 0, halfTotal = 0, halfCovered = 0;
+for (const mode of ["drag", "corner"])
+  for (const name of ["2", "3", "4", "5", "6", "custom"]) {
+    const n = name === "custom" ? 3 : Number(name);
+    for (let seat = 0; seat < n; seat++) {
+      const where = `half ${mode} ${name}${name === "custom" ? "" : "p"} seat ${seat}`;
+      await cornerSetup(name, seat, 3);
+      if (mode === "drag") await page.evaluate(() => window.__store.getState().updateSettings({ turnTimerPlacement: "drag", turnTimerScale: 1 }));
+      await page.waitForTimeout(80);
+      for (const z of await halfPoints(seat)) for (const [half, want] of [["top", 10], ["bottom", 1]]) {
+        halfTotal++;
+        const p = z[half];
+        // A zone the 3x corner disc covers, leaving only its slid glyph's own
+        // box (which stays ±1, checked above): counted, not a failure.
+        if (!p && mode === "corner" && z.slid && z.blocked.every((q) => q === "the timer disc" || q.includes("tile__sign-hit") || q.includes("tile__life") || q.includes("tile__content"))) { halfCovered++; continue; }
+        const did = p ? await tapAt(seat, p.x, p.y) : `no point in the zone (on ${z.blocked.join(", ")})`;
+        if (did !== `${z.sign}${want}`) { halfBad++; console.log(`${where} (${z.rot}°): ${half} half of ${z.sign} did ${did}, wanted ${z.sign}${want}`); }
+      }
+    }
+  }
+console.log(`${halfBad} of ${halfTotal} half-zone taps went wrong (${halfCovered} half-zones under a 3x corner disc, glyph box only)`);
+{
+  // 4p seat 0 is turned (90/270): the screen's up is across its zone.
+  await cornerSetup("4", 0, 1);
+  await page.evaluate(() => window.__store.getState().updateSettings({ turnTimerPlacement: "drag" }));
+  const [z] = await halfPoints(0, 0);
+  const did = z.top ? await tapAt(0, z.top.x, z.top.y) : "no point";
+  const caught = z.rot === 0 && did !== `${z.sign}10`;
+  console.log(`${caught ? "ok  " : "FAIL"} control: 4p seat 0, "up" taken as the screen's -> top-half tap did ${did} (caught: ${caught})`);
+  if (!caught) halfBad++;
+}
+if (bad || tapBad || inkBad || halfBad) process.exitCode = 1;
 await b.close();

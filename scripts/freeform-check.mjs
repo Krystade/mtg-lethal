@@ -426,6 +426,54 @@ for (const [tpl, from] of [["X", 6], ["X", 2], ["Grid", 3]]) {
   s = await state();
   check(s.game.layout.name === tpl && s.game.layout.cells?.length === 4 && (await page.locator(".tile").count()) === 4, `template ${tpl} from ${from} players switches the board (${s.game.layout.cells?.length} cells)`);
 }
+// Half zones on polygon cells: the upper half of each + / − zone, as the seat
+// reads it, is ±10 and the lower ±1 -- on the X (all four facings) and the
+// Grid. Control: "up" taken as the screen's on a turned cell gets it wrong.
+const halfTaps = async (assumeRot) => {
+  const seats = await page.evaluate((assumeRot) => [...document.querySelectorAll(".tile")].map((tile) => {
+    const content = tile.querySelector(".tile__content");
+    const rot = assumeRot ?? Number(/rotate\((\d+)deg\)/.exec(content.style.transform)?.[1] ?? 0);
+    const a = (rot * Math.PI) / 180;
+    const up = { x: Math.sin(a), y: -Math.cos(a) }, across = { x: Math.cos(a), y: Math.sin(a) };
+    return { pid: tile.dataset.pid, rot, zones: [...tile.querySelectorAll(".tile__adj")].map((btn) => {
+      const r = btn.getBoundingClientRect();
+      const c = { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+      const pick = (k) => {
+        for (const off of [0, -0.25, 0.25]) {
+          const p = { x: c.x + across.x * off * btn.offsetWidth + up.x * k * btn.offsetHeight, y: c.y + across.y * off * btn.offsetWidth + up.y * k * btn.offsetHeight };
+          if (document.elementFromPoint(p.x, p.y)?.closest(".tile__adj") === btn) return p;
+        }
+        return null;
+      };
+      return { sign: btn.classList.contains("tile__adj--plus") ? 1 : -1, top: pick(0.3), bottom: pick(-0.3) };
+    }) };
+  }), assumeRot);
+  const out = [];
+  for (const seat of seats) for (const z of seat.zones) for (const [half, step] of [["top", 10], ["bottom", 1]]) {
+    const p = z[half];
+    const life = () => page.evaluate((pid) => window.__store.getState().game.players.find((q) => q.id === pid).life, seat.pid);
+    const before = await life();
+    if (p) await page.touchscreen.tap(p.x, p.y);
+    await page.waitForTimeout(50);
+    out.push({ ok: p && (await life()) - before === z.sign * step, what: `${seat.pid} (${seat.rot}°) ${half} of ${z.sign > 0 ? "+" : "−"}: ${p ? (await life()) - before : "no point"}` });
+  }
+  return out;
+};
+for (const tpl of ["X", "Grid"]) {
+  await page.evaluate(() => window.__store.getState().newGame({ playerCount: 4, startingLife: 40 }));
+  await page.locator(".center__hex").tap();
+  await page.getByRole("button", { name: "▦ Layout" }).tap();
+  await page.getByRole("button", { name: `apply template ${tpl}` }).tap();
+  await page.waitForTimeout(250);
+  const r = await halfTaps();
+  const badOnes = r.filter((q) => !q.ok);
+  check(badOnes.length === 0, `half zones on the ${tpl} template: ${r.length - badOnes.length}/${r.length} taps right ${badOnes.map((q) => q.what).join("; ")}`);
+  if (tpl === "X") {
+    const c = (await halfTaps(0)).filter((q) => q.what.includes(") top "));
+    const wrong = c.filter((q) => !q.ok).length;
+    check(wrong > 0, `control: "up" taken as the screen's on the X -> ${wrong} of ${c.length} top-half taps wrong (caught)`);
+  }
+}
 await page.evaluate(() => window.__store.getState().adjustLife("p0", -5));
 await page.locator(".center__hex").tap();
 await page.getByRole("button", { name: "▦ Layout" }).tap();
