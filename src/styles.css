@@ -278,6 +278,10 @@ input {
    player), clear of the centre hex, each with its own - and + so nothing
    needs a menu mid-game. The row wraps upward as more come into play. */
 .tcount-row {
+  /* The counters' own pixel: 1px up to a 375px-wide phone, growing with the
+     screen's short side to 1.6px by tablet size (820px), so the chips are not
+     lost on a big tile. Every size below is a multiple of it. */
+  --tcu: clamp(1px, calc(1px + (100vmin - 375px) * 0.00135), 1.6px);
   position: absolute;
   bottom: 6px;
   left: 8px;
@@ -286,7 +290,7 @@ input {
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: calc(4 * var(--tcu));
   /* Anchored at the bottom with no top, so it grows upward as rows are
      added. Past 55% of the tile it scrolls rather than bury the number. */
   max-height: calc(var(--lh, 100cqh) * 0.55);
@@ -298,13 +302,13 @@ input {
   /* Line breaks are decided on the base size, so it is small: two share a
      row even on a 6-player tile, then they grow into the space. A lone one
      stays a control, not a banner. */
-  flex: 1 1 84px;
-  min-width: 84px;
-  max-width: 140px;
+  flex: 1 1 calc(84 * var(--tcu));
+  min-width: calc(84 * var(--tcu));
+  max-width: calc(140 * var(--tcu));
   display: inline-flex;
   align-items: stretch;
-  height: 36px;
-  border-radius: 12px;
+  height: calc(36 * var(--tcu));
+  border-radius: calc(12 * var(--tcu));
   background: rgba(0, 0, 0, 0.42);
   overflow: hidden;
   font-weight: 800;
@@ -314,12 +318,12 @@ input {
   color: #1a0308;
 }
 .tcount__btn {
-  flex: 0 0 27px;
-  width: 27px;
+  flex: 0 0 calc(27 * var(--tcu));
+  width: calc(27 * var(--tcu));
   border: none;
   background: rgba(255, 255, 255, 0.1);
   color: inherit;
-  font-size: 1.1rem;
+  font-size: calc(17.6 * var(--tcu));
   font-weight: 800;
   line-height: 1;
   padding: 0;
@@ -329,7 +333,7 @@ input {
   background: rgba(255, 255, 255, 0.3);
 }
 .tcount__btn--hide {
-  font-size: 0.95rem;
+  font-size: calc(15.2 * var(--tcu));
   opacity: 0.6;
 }
 /* Label over value, so the control is narrow enough for two per row. */
@@ -351,18 +355,18 @@ input {
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
-  font-size: 0.6rem;
+  font-size: calc(9.6 * var(--tcu));
   letter-spacing: 0.3px;
   opacity: 0.85;
 }
 .tcount__val b {
-  font-size: 0.95rem;
-  margin-top: 2px;
+  font-size: calc(15.2 * var(--tcu));
+  margin-top: calc(2 * var(--tcu));
 }
 .tcount__dot {
   flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
+  width: calc(7 * var(--tcu));
+  height: calc(7 * var(--tcu));
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7);
 }
