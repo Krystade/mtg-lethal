@@ -91,6 +91,28 @@ export function defaultLayoutFor(playerCount: number): LayoutConfig {
   };
 }
 
+/**
+ * Is the board exactly the preset for its player count: no freeform cells,
+ * the same tiles, nobody moved or turned? A painted grid of another shape
+ * is not, whatever it is called.
+ */
+export function isStandardGrid(layout: LayoutConfig): boolean {
+  if (layout.cells) return false;
+  const std = BUILT_INS[layout.placements.length];
+  if (!std || layout.rows !== std.rows || layout.cols !== std.cols) return false;
+  return std.placements.every((p) => {
+    const q = layout.placements.find((o) => o.playerId === p.playerId);
+    return (
+      !!q &&
+      q.row === p.row &&
+      q.col === p.col &&
+      q.rowSpan === p.rowSpan &&
+      q.colSpan === p.colSpan &&
+      q.rotation === p.rotation
+    );
+  });
+}
+
 export function allBuiltInPresets(): LayoutConfig[] {
   return Object.keys(BUILT_INS)
     .map(Number)

@@ -1166,6 +1166,12 @@ input[type="text"] {
   width: 100%;
 }
 
+.linkbtn:disabled {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--muted);
+}
+
 .toggle {
   display: flex;
   align-items: center;

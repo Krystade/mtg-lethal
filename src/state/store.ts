@@ -27,7 +27,7 @@ import {
 import { advanceTurn, tickTurn } from "../game/turn";
 import { colorForSeat } from "../layout/colors";
 import { clockwiseSeatOrder } from "../layout/order";
-import { defaultLayoutFor } from "../layout/presets";
+import { defaultLayoutFor, isStandardGrid } from "../layout/presets";
 import { layoutCoversSeats } from "../layout/validate";
 import { uid } from "../util/id";
 import { isBetter } from "../game/arcade/bests";
@@ -244,6 +244,11 @@ export interface StoreState {
 
   // layout
   applyLayout: (layout: LayoutConfig) => void;
+  /**
+   * Settings' "Basic grid": the standard grid for the players at the table.
+   * Nobody is added or removed, and each sticker stays on its holder's tile.
+   */
+  applyBasicGrid: () => void;
   saveCustomLayout: (name: string) => void;
   /** Move seats on the board mid-game: players, counters and turn stay. */
   rearrangeSeats: (layout: LayoutConfig) => void;
@@ -774,6 +779,16 @@ export const useStore = create<StoreState>()(
                 ? s.game.turn
                 : { ...s.game.turn, activePlayerId: players[0].id },
             },
+          };
+        }),
+
+      applyBasicGrid: () =>
+        set((s) => {
+          const old = s.game.layout;
+          if (isStandardGrid(old)) return {};
+          const layout = defaultLayoutFor(s.game.players.length);
+          return {
+            game: { ...s.game, layout, stickers: remapStickers(s.game.stickers, old, layout) },
           };
         }),
 
