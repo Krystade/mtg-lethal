@@ -29,7 +29,7 @@ const b2 = await pill.boundingBox();
 
 // persisted?
 const stored = await page.evaluate(() => {
-  const raw = localStorage.getItem("lotus-tracker");
+  const raw = localStorage.getItem("mtg-lethal");
   const s = JSON.parse(raw);
   return s.state.game.players[0].timerPos;
 });

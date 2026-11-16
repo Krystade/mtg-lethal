@@ -23,7 +23,7 @@ export default defineConfig({
     __BUILD_ID__: JSON.stringify(buildId),
     __BUILD_TIME__: JSON.stringify(buildTime),
   },
-  base: "/lotus-tracker/",
+  base: "/mtg-lethal/",
   plugins: [
     react(),
     VitePWA({
@@ -40,8 +40,8 @@ export default defineConfig({
         background_color: "#000000",
         display: "standalone",
         orientation: "portrait",
-        start_url: "/lotus-tracker/",
-        scope: "/lotus-tracker/",
+        start_url: "/mtg-lethal/",
+        scope: "/mtg-lethal/",
         icons: [
           { src: "pwa-192.png", sizes: "192x192", type: "image/png" },
           { src: "pwa-512.png", sizes: "512x512", type: "image/png" },

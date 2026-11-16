@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useStore } from "./store";
+import { STORAGE_KEY } from "./storageKey";
 import { BUILTIN_TEMPLATES, buildFreeLayout, sanitizeFreeform, sanitizeTemplates, templateSeats } from "../layout/freeform";
 import { clockwiseSeatOrder } from "../layout/order";
 import { boardHub, junctionFor } from "../layout/junction";
@@ -42,7 +43,7 @@ function oldSave() {
 }
 
 async function rehydrate(blob: unknown) {
-  localStorage.setItem("lotus-tracker", JSON.stringify(blob));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
   await useStore.persist.rehydrate();
 }
 

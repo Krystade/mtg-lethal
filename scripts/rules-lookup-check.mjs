@@ -71,7 +71,7 @@ await page.locator(".panel__x, .overlay").first().click({ position: { x: 5, y: 5
 await page.keyboard.press("Escape");
 await page.goto(BASE);
 await page.evaluate(() => {
-  const raw = JSON.parse(localStorage.getItem("lotus-tracker") || "{}");
+  const raw = JSON.parse(localStorage.getItem("mtg-lethal") || "{}");
   localStorage.clear();
 });
 await page.reload();

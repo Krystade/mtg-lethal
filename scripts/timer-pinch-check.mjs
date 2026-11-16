@@ -2,7 +2,7 @@
 // two fingers pinch (resize) and twist (rotate); in corner mode pinch only
 // resizes. Usage: node scripts/timer-pinch-check.mjs <url>
 import { chromium } from "@playwright/test";
-const url = process.argv[2] ?? "http://localhost:5188/lotus-tracker/";
+const url = process.argv[2] ?? "http://localhost:5188/mtg-lethal/";
 let fails = 0;
 const check = (ok, msg) => { console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); if (!ok) fails++; };
 const b = await chromium.launch();

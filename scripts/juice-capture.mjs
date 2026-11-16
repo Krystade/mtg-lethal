@@ -6,7 +6,7 @@ import { chromium, webkit } from "@playwright/test";
 
 const engine = process.env.BROWSER === "webkit" ? webkit : chromium;
 
-const BASE = process.argv[2] || "http://localhost:5180/lotus-tracker/";
+const BASE = process.argv[2] || "http://localhost:5180/mtg-lethal/";
 const b = await engine.launch();
 const ctx = await b.newContext({
   viewport: { width: 420, height: 780 },

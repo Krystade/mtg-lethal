@@ -36,6 +36,7 @@ import { giveSticker, placeSticker, remapStickers, sanitizeStickers } from "../g
 import { gapFree } from "../layout/table";
 import { sanitizeFreeform, sanitizeTemplates, templateKey, toTemplateSeats, BUILTIN_TEMPLATES } from "../layout/freeform";
 import type { Rotation } from "./types";
+import { STORAGE_KEY, migrateStorageKey } from "./storageKey";
 
 // localStorage can throw in private mode / at quota. Degrade to a no-op so a
 // failed write never breaks the in-memory game (which is the source of truth).
@@ -276,6 +277,9 @@ function updatePlayer(
 ): Player[] {
   return players.map((p) => (p.id === playerId ? fn(p) : p));
 }
+
+// Before create(): persist reads storage synchronously as the store is built.
+migrateStorageKey();
 
 export const useStore = create<StoreState>()(
   persist(
@@ -937,7 +941,7 @@ export const useStore = create<StoreState>()(
       };
     },
     {
-      name: "lotus-tracker",
+      name: STORAGE_KEY,
       version: 2,
       storage: createJSONStorage(() => safeStorage),
       migrate: (state) => state as StoreState,

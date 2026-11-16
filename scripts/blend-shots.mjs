@@ -1,7 +1,7 @@
 // Films both sliders so the result is looked at, not only measured.
 import { chromium } from "@playwright/test";
 
-const BASE = process.argv[2] || "http://localhost:5180/lotus-tracker/";
+const BASE = process.argv[2] || "http://localhost:5180/mtg-lethal/";
 const b = await chromium.launch();
 const ctx = await b.newContext({
   viewport: { width: 412, height: 915 },

@@ -12,7 +12,7 @@
 // chips were pushed out of view.
 import { chromium } from "@playwright/test";
 
-const BASE = process.argv[2] || "http://localhost:5180/lotus-tracker/";
+const BASE = process.argv[2] || "http://localhost:5180/mtg-lethal/";
 const W = 375;
 const H = 640;
 

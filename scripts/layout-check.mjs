@@ -19,7 +19,7 @@ await page.waitForTimeout(300);
 
 const layout = () =>
   page.evaluate(() => {
-    const s = JSON.parse(localStorage.getItem("lotus-tracker")).state;
+    const s = JSON.parse(localStorage.getItem("mtg-lethal")).state;
     return {
       cols: s.game.layout.cols,
       rows: s.game.layout.rows,

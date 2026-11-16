@@ -48,7 +48,7 @@ const setup = (page, count, seat, settings, layout) =>
 // Screen rects of the pill, its tile, and the centre hexagon + clock.
 const measure = (page) =>
   page.evaluate(async () => {
-    const J = await import("/lotus-tracker/src/layout/junction.ts");
+    const J = await import("/mtg-lethal/src/layout/junction.ts");
     const st = window.__store.getState();
     const junction = J.junctionFor(st.game.layout, st.game.turn.activePlayerId);
     const r = (el) => {

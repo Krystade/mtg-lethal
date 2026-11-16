@@ -7,7 +7,7 @@
 import { chromium, webkit } from "@playwright/test";
 
 const engine = process.env.BROWSER === "webkit" ? webkit : chromium;
-const BASE = process.argv[2] || "http://localhost:5180/lotus-tracker/";
+const BASE = process.argv[2] || "http://localhost:5180/mtg-lethal/";
 
 let bad = 0;
 const check = (name, ok, detail = "") => {
@@ -30,10 +30,10 @@ await page.waitForSelector(".tile__life", { timeout: 20000 });
 await page.evaluate(() =>
   window.__store.getState().newGame({ playerCount: 4, startingLife: 40 }),
 );
-await page.waitForFunction(() => !!localStorage.getItem("lotus-tracker"), null, {
+await page.waitForFunction(() => !!localStorage.getItem("mtg-lethal"), null, {
   timeout: 5000,
 });
-const good = await page.evaluate(() => localStorage.getItem("lotus-tracker"));
+const good = await page.evaluate(() => localStorage.getItem("mtg-lethal"));
 if (!good) throw new Error("no persisted state to corrupt");
 
 const boot = async (mutate, label) => {
@@ -44,7 +44,7 @@ const boot = async (mutate, label) => {
       const o = JSON.parse(raw);
       // eslint-disable-next-line no-new-func
       new Function("s", fn)(o.state);
-      localStorage.setItem("lotus-tracker", JSON.stringify(o));
+      localStorage.setItem("mtg-lethal", JSON.stringify(o));
     },
     [good, mutate],
   );
@@ -112,7 +112,7 @@ r = await boot(
 check("board survives several corrupt fields together", r.tiles > 0 && !r.rootEmpty);
 
 // Restore, so a later run starts from a sane state.
-await page.evaluate((raw) => localStorage.setItem("lotus-tracker", raw), good);
+await page.evaluate((raw) => localStorage.setItem("mtg-lethal", raw), good);
 
 console.log(bad === 0 ? "\nPASS ✅" : `\nFAIL ❌ (${bad})`);
 await b.close();

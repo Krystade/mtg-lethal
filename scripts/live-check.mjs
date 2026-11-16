@@ -1,4 +1,4 @@
-// End-to-end validation of the DEPLOYED Lotus Tracker.
+// End-to-end validation of the DEPLOYED Lethal.
 //
 // The repo's other harnesses drive state through `window.__store`, which is
 // gated behind import.meta.env.DEV and therefore absent from the production
@@ -9,7 +9,7 @@
 import { chromium, webkit } from "@playwright/test";
 
 const engine = process.env.BROWSER === "webkit" ? webkit : chromium;
-const BASE = process.argv[2] || "https://krystade.github.io/lotus-tracker/";
+const BASE = process.argv[2] || "https://krystade.github.io/mtg-lethal/";
 const results = [];
 const check = (name, ok, detail = "") => {
   results.push({ name, ok });
@@ -34,7 +34,7 @@ page.on("pageerror", (e) => errors.push(`[${phase}] ${e}`));
 
 const game = () =>
   page.evaluate(() => {
-    const raw = localStorage.getItem("lotus-tracker");
+    const raw = localStorage.getItem("mtg-lethal");
     return raw ? JSON.parse(raw).state.game : null;
   });
 
@@ -323,12 +323,12 @@ check(
 // --- animated looks --------------------------------------------------
 phase = "looks"; console.log("looks");
 await page.evaluate(() => {
-  const raw = JSON.parse(localStorage.getItem("lotus-tracker"));
+  const raw = JSON.parse(localStorage.getItem("mtg-lethal"));
   raw.state.game.players.forEach((pl, i) => {
     pl.look = ["blue-lava", "gold-drift", "magenta-nebula", "red-tide",
                "green-tide", "purple-pulse"][i % 6];
   });
-  localStorage.setItem("lotus-tracker", JSON.stringify(raw));
+  localStorage.setItem("mtg-lethal", JSON.stringify(raw));
 });
 await page.reload();
 await page.waitForSelector(".tile__life", { timeout: 15000 });
@@ -561,7 +561,7 @@ const drawn = await page.locator(".draw__big").innerText();
 check("a reaction is timed", /^\d+ ms$/.test(drawn), drawn);
 
 const savedBest = await page.evaluate(() => {
-  const raw = localStorage.getItem("lotus-tracker");
+  const raw = localStorage.getItem("mtg-lethal");
   return raw ? JSON.parse(raw).state.arcadeBests : null;
 });
 check(

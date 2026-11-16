@@ -3,7 +3,7 @@
 // players' taps keep working. Usage: node scripts/seat-drag-check.mjs <url>
 import { chromium, webkit } from "@playwright/test";
 import fs from "node:fs";
-const url = process.argv[2] ?? "http://localhost:5188/lotus-tracker/";
+const url = process.argv[2] ?? "http://localhost:5188/mtg-lethal/";
 const engine = process.argv[3] === "webkit" ? webkit : chromium;
 let fails = 0;
 const check = (ok, msg) => { console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); if (!ok) fails++; };
@@ -257,8 +257,8 @@ check(Math.abs(before1.width - after1.width) < 2 && Math.abs(before1.x - after1.
 // it may be covered by anything (the menu hexagon above all).
 {
   const r = await page.evaluate(async () => {
-    const T = await import("/lotus-tracker/src/layout/table.ts");
-    const P = await import("/lotus-tracker/src/layout/presets.ts");
+    const T = await import("/mtg-lethal/src/layout/table.ts");
+    const P = await import("/mtg-lethal/src/layout/presets.ts");
     const st = () => window.__store.getState();
     const frame = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
     const meet = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;

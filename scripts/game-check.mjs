@@ -4,11 +4,11 @@ const b = await chromium.launch();
 const ctx = await b.newContext({ viewport:{width:390,height:844}, deviceScaleFactor:2, isMobile:true, hasTouch:true });
 const p = await ctx.newPage();
 const errs = []; p.on("pageerror", e => errs.push(String(e)));
-const game = () => p.evaluate(() => JSON.parse(localStorage.getItem("lotus-tracker")).state.game);
+const game = () => p.evaluate(() => JSON.parse(localStorage.getItem("mtg-lethal")).state.game);
 const fail = [];
 const ok = (n,c,d="") => { if(!c) fail.push(n); console.log(`  ${c?"✓":"✗"} ${n}${d?` — ${d}`:""}`); };
 
-await p.goto("https://krystade.github.io/lotus-tracker/");
+await p.goto("https://krystade.github.io/mtg-lethal/");
 await p.evaluate(() => localStorage.clear());
 await p.reload(); await p.waitForSelector(".tile__life"); await p.waitForTimeout(500);
 

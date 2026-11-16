@@ -17,12 +17,12 @@ await page.waitForTimeout(300);
 
 const life = () =>
   page.evaluate(() => {
-    const s = JSON.parse(localStorage.getItem("lotus-tracker")).state;
+    const s = JSON.parse(localStorage.getItem("mtg-lethal")).state;
     return s.game.players[0].life;
   });
 const turn = () =>
   page.evaluate(() => {
-    const s = JSON.parse(localStorage.getItem("lotus-tracker")).state;
+    const s = JSON.parse(localStorage.getItem("mtg-lethal")).state;
     return { active: s.game.turn.activePlayerId, n: s.game.turn.turnNumber };
   });
 

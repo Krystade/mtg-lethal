@@ -3,7 +3,7 @@
 // step, at tile scale.
 import { chromium } from "@playwright/test";
 
-const BASE = process.argv[2] || "http://localhost:5180/lotus-tracker/";
+const BASE = process.argv[2] || "http://localhost:5180/mtg-lethal/";
 const A = process.env.A || "blue";
 const B = process.env.B || "red";
 const STYLES = (process.env.STYLES || "fade,stripe,drift,lava,nebula,tide,pulse")
@@ -74,8 +74,8 @@ await page.evaluate(() => {
 // Apply each look's resolved vars, using the app's resolveLook via the store's
 // module graph (exposed in dev alongside __store).
 const applied = await page.evaluate(async () => {
-  const mod = await import("/lotus-tracker/src/layout/looks.ts");
-  const col = await import("/lotus-tracker/src/layout/colors.ts");
+  const mod = await import("/mtg-lethal/src/layout/looks.ts");
+  const col = await import("/mtg-lethal/src/layout/colors.ts");
   mod.textOn = col.textOn;
   const out = [];
   for (const h of document.querySelectorAll("[data-look]")) {

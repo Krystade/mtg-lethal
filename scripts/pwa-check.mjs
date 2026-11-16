@@ -21,7 +21,7 @@ const manifest = await page.evaluate(async (href) => {
 
 const appleIcon = await page.evaluate(async () => {
   // Relative, not root-absolute: the app is served from a subpath on GitHub
-  // Pages (/lotus-tracker/) and from the root under `preview`.
+  // Pages (/mtg-lethal/) and from the root under `preview`.
   const r = await fetch("./apple-touch-icon.png");
   return r.ok;
 });

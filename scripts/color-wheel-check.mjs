@@ -13,7 +13,7 @@
 //     ends up focused -- and the same the other way round.
 // Usage: node scripts/color-wheel-check.mjs [baseUrl]
 import { chromium, webkit } from "@playwright/test";
-const BASE = process.argv[2] || "http://localhost:5180/lotus-tracker/";
+const BASE = process.argv[2] || "http://localhost:5180/mtg-lethal/";
 let bad = 0;
 const PRIMARY = "custom colour", SECOND = "custom second colour";
 

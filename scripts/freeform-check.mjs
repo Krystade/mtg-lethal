@@ -6,7 +6,7 @@
 import { chromium } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
-const BASE = process.argv[2] || "http://localhost:5193/lotus-tracker/";
+const BASE = process.argv[2] || "http://localhost:5193/mtg-lethal/";
 const OUT = "screenshots/chromium/freeform";
 mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({ args: ["--mute-audio"] });

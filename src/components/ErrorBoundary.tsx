@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { LEGACY_STORAGE_KEY, STORAGE_KEY } from "../state/storageKey";
 
 /**
  * Keeps a render error from blanking the app.
@@ -56,8 +57,11 @@ export class ErrorBoundary extends Component<Props, State> {
           onClick={() => {
             // Only if reloading did not help: the saved state is the thing at
             // fault. Destructive, so it says so on the button.
+            // Both keys: a save still under the old name would otherwise be
+            // moved straight back in on the reload.
             try {
-              localStorage.removeItem("lotus-tracker");
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(LEGACY_STORAGE_KEY);
             } catch {
               /* storage unavailable; reloading is all that is left */
             }
