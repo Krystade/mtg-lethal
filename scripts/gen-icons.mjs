@@ -13,7 +13,7 @@ const svg = readFileSync(`${OUT}/icon.svg`, "utf8");
 const targets = [
   { file: "pwa-192.png", size: 192, scale: 1 },
   { file: "pwa-512.png", size: 512, scale: 1 },
-  { file: "maskable-512.png", size: 512, scale: 0.8 },
+  { file: "maskable-512.png", size: 512, scale: 0.7 },
   { file: "apple-touch-icon.png", size: 180, scale: 1 },
 ];
 
