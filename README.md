@@ -1,4 +1,4 @@
-# Lotus Tracker
+# Lethal
 
 A Magic: The Gathering **Commander/EDH life & turn tracker**, built as an installable, offline PWA. The phone lies flat in the middle of the table and each player's tile rotates to face their seat.
 

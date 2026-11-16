@@ -31,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Left in production on purpose: if this ever fires on someone's phone,
     // the console is the only record of why.
-    console.error("Lotus Tracker crashed while rendering:", error, info);
+    console.error("Lethal crashed while rendering:", error, info);
   }
 
   render() {

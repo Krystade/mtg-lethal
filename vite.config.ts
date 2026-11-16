@@ -33,8 +33,8 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ["apple-touch-icon.png", "icon.svg"],
       manifest: {
-        name: "Lotus Tracker",
-        short_name: "Lotus",
+        name: "Lethal",
+        short_name: "Lethal",
         description: "MTG Commander life & turn tracker",
         theme_color: "#000000",
         background_color: "#000000",
