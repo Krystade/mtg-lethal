@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clearSpot, faceFrame } from "./polyPlace";
+import { clampInPoly, clearSpot, faceFrame } from "./polyPlace";
 
 // A tall triangle-ish cell: wide at the bottom, narrow at the top.
 const poly = [
@@ -27,6 +27,43 @@ describe("clearSpot", () => {
 
   it("gives up (null) when nothing fits", () => {
     expect(clearSpot(poly, [{ x: -10, y: -10, w: 200, h: 400 }], 20, 20, { x: 30, y: 250 })).toBeNull();
+  });
+});
+
+describe("clampInPoly", () => {
+  // The playtest's triangle: apex on the left at the hub, base the right edge.
+  const tri = [
+    { x: 0, y: 150 },
+    { x: 300, y: 0 },
+    { x: 300, y: 300 },
+  ];
+  const inside = (c: { x: number; y: number }, w: number, h: number, m: number) =>
+    // Top edge y = 150 - x/2, bottom edge y = 150 + x/2, right edge x = 300.
+    c.x + w / 2 <= 300 - m + 1e-6 &&
+    c.y - h / 2 >= 150 - (c.x - w / 2) / 2 + m * Math.hypot(1, 0.5) - 1e-6 &&
+    c.y + h / 2 <= 150 + (c.x - w / 2) / 2 - m * Math.hypot(1, 0.5) + 1e-6;
+
+  it("keeps a spot that already fits, even far outside the face rectangle", () => {
+    // The triangle's largest rectangle is x 150-300; this is well left of it.
+    expect(clampInPoly(tri, 40, 20, { x: 110, y: 150 }, 4)).toEqual({ x: 110, y: 150 });
+  });
+
+  it("pulls a spot past an edge back to the nearest one inside, the whole box clear", () => {
+    for (const c of [
+      { x: 20, y: 150 }, // past the apex
+      { x: 200, y: 40 }, // over the top edge
+      { x: 340, y: 280 }, // past the base corner
+    ]) {
+      const p = clampInPoly(tri, 40, 20, c, 4)!;
+      expect(inside(p, 40, 20, 4)).toBe(true);
+    }
+    // Straight up from the middle: it slides to the top edge, not the face.
+    const p = clampInPoly(tri, 40, 20, { x: 200, y: 40 }, 4)!;
+    expect(p.y).toBeLessThan(110);
+  });
+
+  it("null when the box fits nowhere", () => {
+    expect(clampInPoly(tri, 400, 20, { x: 200, y: 150 }, 4)).toBeNull();
   });
 });
 

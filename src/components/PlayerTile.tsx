@@ -19,7 +19,7 @@ import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
 import { HUB_REACH, junctionFor, type TileJunction } from "../layout/junction";
-import { boxOf, clearSpot, faceFrame, type Box } from "../layout/polyPlace";
+import { boxOf, clampInPoly, clearSpot, faceFrame, type Box } from "../layout/polyPlace";
 import { seatHandleSpot, type SeatHandleSpot } from "../game/stickers";
 import { startSeatDrag, useSeatUi } from "./seatDrag";
 import { screenToLocal, usePillGesture } from "./usePillGesture";
@@ -202,6 +202,7 @@ function polySpots(
   life: string,
   autoPill: boolean,
   stickers: StickerHold[],
+  stored: TilePos | undefined,
 ): PolySpots {
   const { sw, sh, toLocal } = faceFrame(cell.face, rotation);
   const poly = cell.poly.map(toLocal);
@@ -287,8 +288,44 @@ function polySpots(
     const prefer = { x: (DEFAULT_TIMER_POS.x / 100) * sw, y: (DEFAULT_TIMER_POS.y / 100) * sh };
     const spot = (sb.length ? clearSpot(poly, [...pb, ...sb], w, h, prefer) : null) ?? clearSpot(poly, pb, w, h, prefer);
     if (spot?.moved) pill = { x: (spot.x / sw) * 100, y: (spot.y / sh) * 100 };
+  } else if (pillEl && stored?.x !== undefined && stored.y !== undefined) {
+    // A dragged spot saved on another layout (or a bigger timer) can lie
+    // outside this cell: bring it to the nearest spot inside.
+    const f = fitInCell(cell, rotation, content, { x: stored.x, y: stored.y, angle: stored.angle });
+    if (f && Math.hypot(((f.x - stored.x) / 100) * sw, ((f.y - stored.y) / 100) * sh) > 0.5) pill = f;
   }
   return { more, pill };
+}
+
+const clampPct = (v: number | undefined) => (v === undefined ? v : Math.max(4, Math.min(96, v)));
+
+/** Px between a dragged timer and its freeform cell's edge. */
+const PILL_EDGE = 4;
+
+/**
+ * The nearest spot (x / y % of the face) to `pos` where the whole timer lies
+ * inside its freeform cell's polygon, PILL_EDGE px clear of its edge: a
+ * triangle's or a slanted cell's timer can go anywhere in the cell, not just
+ * in the rectangle its face fills. Measured in the face's own frame; a
+ * turned timer takes its turned extent. null when the timer fits nowhere.
+ */
+function fitInCell(
+  cell: PolyGeom,
+  rotation: Rotation,
+  content: HTMLElement,
+  pos: { x: number; y: number; angle?: number },
+): { x: number; y: number } | null {
+  const pillEl = content.querySelector<HTMLElement>(".tile__pill");
+  if (!pillEl) return null;
+  const { sw, sh, toLocal } = faceFrame(cell.face, rotation);
+  if (!sw || !sh) return null;
+  const a = ((pos.angle ?? 0) * Math.PI) / 180;
+  const pw = pillEl.offsetWidth;
+  const ph = pillEl.offsetHeight;
+  const w = Math.abs(pw * Math.cos(a)) + Math.abs(ph * Math.sin(a));
+  const h = Math.abs(pw * Math.sin(a)) + Math.abs(ph * Math.cos(a));
+  const c = clampInPoly(cell.poly.map(toLocal), w, h, { x: (pos.x / 100) * sw, y: (pos.y / 100) * sh }, PILL_EDGE);
+  return c ? { x: (c.x / sw) * 100, y: (c.y / sh) * 100 } : null;
 }
 
 /**
@@ -590,14 +627,22 @@ export function PlayerTile({
   const [signShift, setSignShift] = useState<SignShift | null>(null);
   // The "10" label's foot, px above the glyph's centre (tenLabelAt).
   const [tenAt, setTenAt] = useState<number | null>(null);
-  const autoPos = autoPill && spots?.pill ? spots.pill : undefined;
+  // The auto-placed spot, or (freeform) the saved spot brought inside the cell.
+  const autoPos = (autoPill || cell) && spots?.pill ? spots.pill : undefined;
+  // A grid tile keeps its timer 4-96% inside it; a spot saved on a freeform
+  // cell can lie past the face, so it is pulled back in on a grid.
+  const savedPos =
+    !cell && player?.timerPos
+      ? { ...player.timerPos, x: clampPct(player.timerPos.x), y: clampPct(player.timerPos.y) }
+      : player?.timerPos;
   const pill = usePillGesture({
-    pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos, ...autoPos } as TilePos & { x: number; y: number },
+    pos: { ...DEFAULT_TIMER_POS, ...savedPos, ...autoPos } as TilePos & { x: number; y: number },
     rotation: placement.rotation,
     pinned: pinnedToCorner,
     box: () => contentRef.current,
     onTap: passTurn,
     onCommit: (p) => setTimerPos(pid, p),
+    fit: cell ? (p) => (contentRef.current ? fitInCell(cell, placement.rotation, contentRef.current, p) : null) : undefined,
   });
 
   // Accumulating life swing: sums rapid taps, shows a "+3 / -5" chip, then
@@ -650,7 +695,7 @@ export function PlayerTile({
     const content = contentRef.current;
     const next =
       !content || !player ? null
-      : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill, stickers)
+      : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill, stickers, player.timerPos)
       : { more: null, pill: autoPill ? gridPill(placement.rotation, content) : null };
     setSpots((s) => (s === next || (s && next && sameSpot(s.more, next.more) && sameSpot(s.pill, next.pill)) ? s : next));
     const shift = content && !cell && pinnedToCorner ? signShifts(content) : null;
@@ -706,7 +751,7 @@ export function PlayerTile({
   const rotated = placement.rotation === 90 || placement.rotation === 270;
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const lowLife = player.life > 0 && player.life <= 5;
-  const pillPos = { ...DEFAULT_TIMER_POS, ...player.timerPos, ...autoPos, ...pill.live };
+  const pillPos = { ...DEFAULT_TIMER_POS, ...savedPos, ...autoPos, ...pill.live };
   const handle = seatHandleSpot(layout, pid);
   const junction = pinnedToCorner ? junctionFor(layout, pid) : null;
   const corner = junction ? cornerTimer(junction, placement.rotation) : null;

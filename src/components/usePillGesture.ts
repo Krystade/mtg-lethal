@@ -44,6 +44,13 @@ export function usePillGesture(opts: {
   box: () => HTMLElement | null;
   onTap: () => void;
   onCommit: (p: TilePos) => void;
+  /**
+   * Where a drag may take it: the nearest allowed centre (% of the box) to
+   * the one asked for, or null to keep it 4-96% inside the box. A freeform
+   * cell lets it go anywhere in the cell's polygon, which reaches past its
+   * face box.
+   */
+  fit?: (p: TilePos & { x: number; y: number }) => { x: number; y: number } | null;
 }) {
   const [live, setLive] = useState<TilePos | null>(null);
   const cleanup = useRef<(() => void) | null>(null);
@@ -97,8 +104,14 @@ export function usePillGesture(opts: {
         const m1 = mid(now);
         const m0 = mid(was);
         const [lx, ly] = screenToLocal(rotation, m1.x - m0.x, m1.y - m0.y);
-        x = clamp(x + (lx / w) * 100, 4, 96);
-        y = clamp(y + (ly / h) * 100, 4, 96);
+        x += (lx / w) * 100;
+        y += (ly / h) * 100;
+        const f = latest.current.fit?.({ x, y, scale, angle });
+        if (f) ({ x, y } = f);
+        else {
+          x = clamp(x, 4, 96);
+          y = clamp(y, 4, 96);
+        }
       }
       cur = { x, y, scale, angle };
       setLive(cur);

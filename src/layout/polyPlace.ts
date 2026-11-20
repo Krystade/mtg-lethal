@@ -1,4 +1,4 @@
-import { halfPlanes, type Pt } from "./power";
+import { clipPoly, halfPlanes, type Pt } from "./power";
 
 /**
  * Free spots inside a freeform cell. A narrow cell's face (its largest
@@ -61,6 +61,50 @@ export function fitsAt(poly: Pt[], blocks: Box[], w: number, h: number, c: Pt): 
     if (!E.every((e) => e.mx * x + e.my * y - e.k >= -0.5)) return false;
   const me = { x: x0, y: y0, w, h };
   return !blocks.some((b) => overlaps(me, b));
+}
+
+/**
+ * The centre nearest `c` at which a w×h box lies wholly inside the convex
+ * `poly`, `margin` px clear of every edge: `c` itself when it already does.
+ * The centres that fit are the polygon with each edge pulled in by the box's
+ * reach across it (half its extent along the edge's normal) plus the margin;
+ * outside that, the nearest point on its border. null when the box fits
+ * nowhere. This is where a dragged timer may go on a freeform cell: the whole
+ * cell, not just the rectangle its face fills.
+ */
+export function clampInPoly(poly: Pt[], w: number, h: number, c: Pt, margin = 4): Pt | null {
+  if (poly.length < 3) return null;
+  const E = halfPlanes(poly);
+  const bb = boxOf(poly);
+  let fit: Pt[] = [
+    { x: bb.x, y: bb.y },
+    { x: bb.x + bb.w, y: bb.y },
+    { x: bb.x + bb.w, y: bb.y + bb.h },
+    { x: bb.x, y: bb.y + bb.h },
+  ];
+  const need = E.map((e) => e.k + (Math.abs(e.mx) * w) / 2 + (Math.abs(e.my) * h) / 2 + margin);
+  E.forEach((e, i) => {
+    if (fit.length >= 3) fit = clipPoly(fit, (p) => need[i] - (e.mx * p.x + e.my * p.y));
+  });
+  if (fit.length < 3) return null;
+  if (E.every((e, i) => e.mx * c.x + e.my * c.y >= need[i] - 1e-9)) return { x: c.x, y: c.y };
+  let best = fit[0];
+  let bd = Infinity;
+  for (let i = 0; i < fit.length; i++) {
+    const p = fit[i];
+    const q = fit[(i + 1) % fit.length];
+    const dx = q.x - p.x;
+    const dy = q.y - p.y;
+    const L2 = dx * dx + dy * dy;
+    const s = L2 > 0 ? Math.max(0, Math.min(1, ((c.x - p.x) * dx + (c.y - p.y) * dy) / L2)) : 0;
+    const pt = { x: p.x + dx * s, y: p.y + dy * s };
+    const d = (pt.x - c.x) ** 2 + (pt.y - c.y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = pt;
+    }
+  }
+  return best;
 }
 
 /**
