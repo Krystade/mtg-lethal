@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+// Vitest hands CSS imports back empty, even with ?raw, and this project has
+// no Node types for tsc, so styles.css is read through a Node import whose
+// name tsc does not try to resolve.
+const fsName = "node:fs" as string;
+const nodeFs: { readFileSync(path: string, encoding: string): string } = await import(/* @vite-ignore */ fsName);
+const cwd = (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
+const css = nodeFs.readFileSync(`${cwd}/src/styles.css`, "utf8");
 import {
   HEART_ALPHA,
   accentFor,
@@ -267,7 +272,6 @@ describe("tartan", () => {
 describe("glitch timing", () => {
   // Photosensitivity rests on numbers that live in styles.css, so they are
   // read back out of it rather than restated here, where they could drift.
-  const css = readFileSync(join(process.cwd(), "src/styles.css"), "utf8");
   const strips = [1, 2, 3].map((n) => {
     const period = Number(css.match(new RegExp(`lkGlitch${n} calc\\(([\\d.]+)s`))?.[1]);
     const body = css.match(new RegExp(`@keyframes lkGlitch${n} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? "";
