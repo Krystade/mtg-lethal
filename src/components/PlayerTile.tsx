@@ -490,13 +490,30 @@ function signShifts(content: HTMLElement): SignShift | null {
 const sameShift = (a: SignShift | null, b: SignShift | null) => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
 
 /**
- * The life step a press on a + / − zone asks for: the zone's upper half, as
- * the seat reads its number (the content box is turned to face the seat), is
- * ±10, the lower half ±1. The glyph sits on the midline, so the line is moved
- * up by TEN_LINE of its font size: a press on the glyph itself is still ±1,
- * and the faint "10" above it marks where ±10 starts.
+ * Where ±10 starts on a + / − zone: this many px above the glyph's centre,
+ * as the seat reads its number (the content box is turned to face the seat).
+ * Everything below the line -- the glyph and a ring round it about the
+ * glyph's own size again (its ink is ~0.54em, so 0.8em from its centre, and
+ * never less than 22px: a 44px target) -- is ±1; the band above it, where
+ * the "10" sits, is ±10. On a short zone the band keeps TEN_ROOM (the label
+ * and some air) and the ring gives way, down to TEN_FLOOR (the ink and a
+ * hair). `em` is the glyph's font size, `zoneHalf` half the zone's height.
  */
-const TEN_LINE = 0.3;
+export const TEN_BUFFER = 0.8;
+export const TEN_MIN_PX = 22;
+export const TEN_ROOM = 0.8;
+export const TEN_FLOOR = 0.42;
+export function tenLine(em: number, zoneHalf: number): number {
+  const want = Math.max(TEN_BUFFER * em, TEN_MIN_PX);
+  return Math.max(TEN_FLOOR * em, Math.min(want, zoneHalf - TEN_ROOM * em));
+}
+/** Where the "10" label's foot goes, px above the glyph's centre: just past the line, inside the ±10 band. */
+export const tenLabelAt = (em: number, zoneHalf: number) => tenLine(em, zoneHalf) + 0.12 * em;
+
+/**
+ * The life step a press on a + / − zone asks for: ±10 past tenLine above
+ * the glyph (the zone's centre, as the glyph sits on its midline), else ±1.
+ */
 export function lifeStep(e: { currentTarget: HTMLElement; clientX: number; clientY: number }, rotation: number): 1 | 10 {
   const btn = e.currentTarget;
   const r = btn.getBoundingClientRect();
@@ -505,7 +522,17 @@ export function lifeStep(e: { currentTarget: HTMLElement; clientX: number; clien
   const up = (e.clientX - (r.left + r.width / 2)) * Math.sin(a) - (e.clientY - (r.top + r.height / 2)) * Math.cos(a);
   const sign = btn.querySelector<HTMLElement>(".tile__sign");
   const em = sign ? parseFloat(getComputedStyle(sign).fontSize) || 0 : 0;
-  return up > TEN_LINE * em ? 10 : 1;
+  // offsetHeight is the zone's own height, before the tile's rotation.
+  return up > tenLine(em, btn.offsetHeight / 2) ? 10 : 1;
+}
+
+/** A glyph's slide clear of the corner disc, and where its "10" sits. */
+function signStyle(shift: number | undefined, tenAt: number | null): CSSProperties | undefined {
+  if (!shift && tenAt === null) return undefined;
+  return {
+    ...(shift ? { translate: `${shift}px 0` } : {}),
+    ...(tenAt !== null ? { "--ten-at": `${tenAt}px` } : {}),
+  } as CSSProperties;
 }
 
 /** A slid glyph's own hit box (see signShifts), inside its button. */
@@ -561,6 +588,8 @@ export function PlayerTile({
   const [spots, setSpots] = useState<PolySpots | null>(null);
   // Corner mode: how far each + / − glyph slides clear of the corner disc.
   const [signShift, setSignShift] = useState<SignShift | null>(null);
+  // The "10" label's foot, px above the glyph's centre (tenLabelAt).
+  const [tenAt, setTenAt] = useState<number | null>(null);
   const autoPos = autoPill && spots?.pill ? spots.pill : undefined;
   const pill = usePillGesture({
     pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos, ...autoPos } as TilePos & { x: number; y: number },
@@ -626,6 +655,11 @@ export function PlayerTile({
     setSpots((s) => (s === next || (s && next && sameSpot(s.more, next.more) && sameSpot(s.pill, next.pill)) ? s : next));
     const shift = content && !cell && pinnedToCorner ? signShifts(content) : null;
     setSignShift((s) => (sameShift(s, shift) ? s : shift));
+    const btn = content?.querySelector<HTMLElement>(".tile__adj");
+    const sign = btn?.querySelector<HTMLElement>(".tile__sign");
+    const em = sign ? parseFloat(getComputedStyle(sign).fontSize) || 0 : 0;
+    const ten = btn && em > 0 && btn.offsetHeight > 0 ? Math.round(tenLabelAt(em, btn.offsetHeight / 2) * 2) / 2 : null;
+    setTenAt((t) => (t === ten ? t : ten));
   });
 
   const isActive = turn.activePlayerId === pid;
@@ -769,7 +803,7 @@ export function PlayerTile({
           style={signShift?.zone[0] ? { width: signShift.zone[0] } : undefined}
           {...minus}
         >
-          <span className="tile__sign" style={signShift?.shift[0] ? { translate: `${signShift.shift[0]}px 0` } : undefined}>–</span>
+          <span className="tile__sign" style={signStyle(signShift?.shift[0], tenAt)}>–</span>
           <SignHitBox hit={signShift?.hit[0]} side="left" />
         </button>
         <button
@@ -778,7 +812,7 @@ export function PlayerTile({
           style={signShift?.zone[1] ? { width: signShift.zone[1] } : undefined}
           {...plus}
         >
-          <span className="tile__sign" style={signShift?.shift[1] ? { translate: `${signShift.shift[1]}px 0` } : undefined}>+</span>
+          <span className="tile__sign" style={signStyle(signShift?.shift[1], tenAt)}>+</span>
           <SignHitBox hit={signShift?.hit[1]} side="right" />
         </button>
 

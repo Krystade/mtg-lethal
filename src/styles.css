@@ -112,13 +112,16 @@ input {
   display: block;
 }
 
-/* Discrete +/- hit areas near each edge; the middle (the number) is inert. */
+/* Discrete +/- hit areas near each edge; the middle (the number) is inert.
+   80% tall: the glyph and the ring round it are ±1 (PlayerTile tenLine), so
+   the ±10 band above needs the height. The counter row, ⋯, the seat handle
+   and the chips are all drawn over it and keep their own taps. */
 .tile__adj {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   width: 32%;
-  height: 56%;
+  height: 80%;
   border: none;
   background: transparent;
   display: flex;
@@ -147,17 +150,16 @@ input {
   pointer-events: none;
 }
 
-/* The zone's upper half (as the seat reads it) is ±10, the lower ±1 (see
-   PlayerTile lifeStep, which puts the line 0.3em above the glyph's centre).
-   A "10" above that line says so: big enough to read across the table (0.45
-   of the glyph, as bold), and clear of the glyph's ink (0.27em above its
-   centre) by about a third of the glyph. Its em is its own, so 0.62 glyph
-   em is 1.38 of these. */
+/* Above the glyph (as the seat reads it) is ±10, the glyph and a ring round
+   it ±1 (PlayerTile tenLine). A "10" just past that line, in the ±10 band,
+   says so: big enough to read across the table (0.45 of the glyph, as
+   bold). --ten-at (px, from PlayerTile tenLabelAt) is where its foot sits
+   above the glyph's centre; the fallback is 0.92 glyph em (2.04 of its own). */
 .tile__sign::before {
   content: "10";
   position: absolute;
   left: 50%;
-  bottom: calc(50% + 1.38em);
+  bottom: calc(50% + var(--ten-at, 2.04em));
   translate: -50% 0;
   font-size: 0.45em;
   line-height: 1;
