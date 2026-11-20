@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { textOn } from "../layout/colors";
 import type { ResolvedLook } from "../layout/looks";
+import { LookLayers } from "./LookLayers";
 
 /**
  * Renders a look using the very same CSS the tiles use, so a swatch is the
@@ -23,13 +24,7 @@ export function LookPreview({
       // show white-on-gold while the real tile renders black.
       style={{ color: textOn(look.base), ...look.vars } as CSSProperties}
     >
-      {look.layers > 0 && (
-        <span className="tile__look" aria-hidden>
-          {Array.from({ length: look.layers }, (_, i) => (
-            <span key={i} />
-          ))}
-        </span>
-      )}
+      <LookLayers look={look} />
       {children}
     </span>
   );

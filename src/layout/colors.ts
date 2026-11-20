@@ -224,6 +224,32 @@ function fromOklch(l: number, c: number, h: number): string {
 }
 
 /**
+ * A straight-line blend in OKLab (not OKLCH): the colour two threads of `a`
+ * and `b` read as when woven together, or a speck fading toward white.
+ *
+ * Unlike `mix` it takes no trip round the hue wheel. Two threads crossing do
+ * not pass through the hues between them; they average, and OKLab is the
+ * space where that average still looks like both rather than greying out the
+ * way an sRGB midpoint does.
+ */
+export function mixOklab(a: string, b: string, t: number): string {
+  const amount = Math.min(1, Math.max(0, t));
+  const A = toOklch(a);
+  const B = toOklch(b);
+  const lab = (p: { l: number; c: number; h: number }) => [
+    p.l,
+    p.c * Math.cos(p.h * 2 * Math.PI),
+    p.c * Math.sin(p.h * 2 * Math.PI),
+  ];
+  const [la, aa, ba] = lab(A);
+  const [lb, ab, bb] = lab(B);
+  const L = la + (lb - la) * amount;
+  const X = aa + (ab - aa) * amount;
+  const Y = ba + (bb - ba) * amount;
+  return fromOklch(L, Math.sqrt(X * X + Y * Y), Math.atan2(Y, X) / (2 * Math.PI));
+}
+
+/**
  * The direction the short way round the hue wheel runs, from `a` to `b`.
  *
  * Computed once per look from the pair the player chose, then forced on every

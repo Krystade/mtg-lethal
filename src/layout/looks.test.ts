@@ -59,7 +59,8 @@ describe("resolveLook — parsing", () => {
 });
 
 describe("resolveLook — fallback", () => {
-  it.each([undefined, "", "chartreuse", "blue-tartan", "-", "gold-"])(
+  // (Tartan used to stand in here as a style that did not exist. It does now.)
+  it.each([undefined, "", "chartreuse", "blue-plaid", "-", "gold-"])(
     "falls back to the player's colour for %s",
     (id) => {
       const l = resolveLook(id as string | undefined, "#123456");
@@ -193,6 +194,22 @@ describe("the contrast guarantee for custom colours", () => {
       const ink = textOn(look.base);
       for (const v of ["--look-lo", "--look-hi"]) {
         expect(contrastRatio(ink, look.vars[v])).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  // Every style, not just lava: styles paint different colours, and a later
+  // style adding its own (a glint, a crossing) must be held to the same bar.
+  // #ff8800 is the colour that once failed -- black ink, but its hue-rotated
+  // shadow was clamped as if it took white.
+  const customs = ["#ffffff", "#000000", "#ff0000", "#00ff88", "#7a7a7a", "#123456", "#ff8800", "#20c0a0", "#f5e6a0"];
+  it.each(LOOK_STYLES.flatMap((s) => customs.map((c) => [c, s.id])))(
+    "keeps every painted colour legible on custom %s with %s",
+    (colour, styleId) => {
+      const look = resolveLook(lookId(colour, styleId), "#000");
+      const ink = textOn(look.base);
+      for (const c of look.paintedColours) {
+        expect(contrastRatio(ink, c)).toBeGreaterThanOrEqual(3);
       }
     },
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLAYER_COLORS, contrastRatio, textOn } from "./colors";
+import { PLAYER_COLORS, contrastRatio, mix, mixOklab, textOn } from "./colors";
 
 describe("textOn never returns an illegible ink", () => {
   // The life total is the whole app. Whatever colour a player picks from the
@@ -43,5 +43,33 @@ describe("textOn never returns an illegible ink", () => {
       "#ffffff", // green
       "#ffffff", // purple
     ]);
+  });
+});
+
+describe("mixOklab", () => {
+  it("returns the ends exactly at 0 and 1, as opaque hex", () => {
+    expect(mixOklab("#3e92cc", "#b23a2e", 0)).toBe("#3e92cc");
+    expect(mixOklab("#3e92cc", "#b23a2e", 1)).toBe("#b23a2e");
+    expect(mixOklab("#3e92cc", "#b23a2e", 0.5)).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it("lands between its ends in lightness", () => {
+    const m = mixOklab("#000000", "#ffffff", 0.5);
+    const lum = (h: string) => contrastRatio(h, "#000000");
+    expect(lum(m)).toBeGreaterThan(lum("#000000"));
+    expect(lum(m)).toBeLessThan(lum("#ffffff"));
+  });
+
+  it("averages two threads instead of travelling round the wheel between them", () => {
+    // Blue and orange: the hue-arc blend passes through a vivid green or
+    // magenta; the straight blend is the muted midpoint a weave really shows.
+    const straight = mixOklab("#3e92cc", "#e08a2e", 0.5);
+    const arc = mix("#3e92cc", "#e08a2e", 0.5);
+    expect(straight).not.toBe(arc);
+    const spread = (h: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+      return Math.max(r, g, b) - Math.min(r, g, b);
+    };
+    expect(spread(straight)).toBeLessThan(spread(arc));
   });
 });

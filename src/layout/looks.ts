@@ -3,6 +3,7 @@ import {
   contrastRatio,
   hueDirection,
   mix,
+  mixOklab,
   rotateHue,
   shift,
   textOn,
@@ -33,6 +34,12 @@ export interface LookStyle {
   animated: boolean;
   /** How many decorative layers the tile renders for this style. */
   layers: number;
+  /**
+   * The layers have an up and a down, so they turn with the seat. Only these
+   * styles pay for the extra rotated container; everything else is a
+   * background with no orientation.
+   */
+  directional?: boolean;
 }
 
 export const HUES: Hue[] = [
@@ -56,6 +63,15 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "pulse", name: "Pulse", animated: true, layers: 2 },
   { id: "smoke", name: "Smoke", animated: true, layers: 1 },
   { id: "marble", name: "Marble", animated: true, layers: 1 },
+  { id: "glitter", name: "Glitter", animated: true, layers: 2 },
+  { id: "hearts", name: "Hearts", animated: true, layers: 7, directional: true },
+  { id: "foil", name: "Foil", animated: true, layers: 1 },
+  { id: "fissure", name: "Fissure", animated: true, layers: 2 },
+  { id: "radiance", name: "Radiance", animated: true, layers: 2 },
+  // Directional: a tear runs along the owner's lines of text, like a bad
+  // scanline. Unturned, on a side seat it tore across the number instead.
+  { id: "glitch", name: "Glitch", animated: true, layers: 3, directional: true },
+  { id: "tartan", name: "Tartan", animated: false, layers: 0 },
 ];
 
 /**
@@ -120,6 +136,8 @@ export interface ResolvedLook {
   vars: Record<string, string>;
   animated: boolean;
   layers: number;
+  /** The layers turn with the seat (see LookStyle.directional). */
+  directional: boolean;
   /** Every colour this look actually paints, for the contrast test. */
   paintedColours: string[];
 }
@@ -144,6 +162,320 @@ function noiseDataUri(colour: string, frequency: number, octaves: number, seed: 
     `<feColorMatrix type='matrix' values='0 0 0 0 ${r.toFixed(3)} 0 0 0 0 ${g.toFixed(3)} 0 0 0 0 ${b.toFixed(3)} 0 0 0 ${-cut} ${cut.toFixed(2)}'/>` +
     `</filter><rect width='520' height='520' filter='url(#n)'/></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+/** An SVG document as a CSS url() value. */
+function svgUrl(svg: string): string {
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+/** A colour's channels as 0..1, written for an feColorMatrix. */
+function channels(colour: string): string[] {
+  return [1, 3, 5].map((i) =>
+    (parseInt(colour.replace("#", "").slice(i - 1, i + 1), 16) / 255).toFixed(3),
+  );
+}
+
+/**
+ * A small seeded generator, so every baked pattern is the same on every device
+ * and every render -- a sparkle that moved between renders would flicker.
+ */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Travels from `from` toward `toward` in OKLab as far as the life total still
+ * clears MIN_CONTRAST against the base's ink, and returns where it stopped.
+ *
+ * This is how a style asks for "as bright a glint as this seat can afford":
+ * on a dark-ink hue it reaches nearly white, on a white-ink hue it stops at
+ * the last colour the white number still reads against.
+ */
+export function reachToward(from: string, toward: string, base: string): string {
+  const ink = textOn(base);
+  const ok = (c: string) => contrastRatio(ink, c) >= MIN_CONTRAST;
+  if (!ok(from)) return withinInk(from, base);
+  const end = mixOklab(from, toward, 1);
+  if (ok(end)) return end;
+  let good = 0;
+  let bad = 1;
+  for (let i = 0; i < 16; i++) {
+    const t = (good + bad) / 2;
+    if (ok(mixOklab(from, toward, t))) good = t;
+    else bad = t;
+  }
+  return mixOklab(from, toward, good);
+}
+
+/**
+ * Glitter's colours: the ground it is scattered on, the speck of the static
+ * grain, and the glint of the winking sparkles.
+ *
+ * The glint is the brightest the seat can afford. On a dark-ink hue that is
+ * white, and the ground stays the base. On a white-ink hue the base already
+ * sits near the lightest the white number tolerates, so a glint can barely
+ * outshine it -- glitter on plain blue all but vanished. There the ground
+ * deepens instead, which only gains contrast, and the glint stands out from
+ * it. The speck is whichever of the shadow and the glint stands further from
+ * the ground: dark on gold, where light specks would melt into the base;
+ * light on a deepened blue. Measured, not listed, so a custom colour gets the
+ * same choice.
+ */
+export function glitterInks(
+  base: string,
+  lo: string,
+  hi: string,
+): { ground: string; speck: string; glint: string } {
+  const glint = reachToward(hi, "#ffffff", base);
+  const ground = textOn(base) === "#ffffff" ? shift(base, -0.24) : base;
+  const speck = contrastRatio(lo, ground) > contrastRatio(glint, ground) ? lo : glint;
+  return { ground, speck, glint };
+}
+
+/**
+ * Fine grain thresholded hard, so it reads as specks rather than a cloud.
+ *
+ * Alpha is a steep ramp on the noise value: everything under `cut` is
+ * transparent and the few pixels above it are solid, which is the difference
+ * between glitter and dust. The colour space is pinned to sRGB so the speck
+ * is painted in exactly the colour the contrast test checked, not a lighter
+ * linear-light reading of it. stitchTiles makes the tile repeat seamlessly.
+ */
+export function grainDataUri(
+  colour: string,
+  cut: number,
+  seed: number,
+  size = 180,
+  /** Lower frequency and a gentle ramp turn specks into soft mottling. */
+  { frequency = 0.9, octaves = 1, k = 30 } = {},
+): string {
+  const [r, g, b] = channels(colour);
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>` +
+    `<filter id='g' x='0' y='0' width='100%' height='100%' color-interpolation-filters='sRGB'>` +
+    `<feTurbulence type='fractalNoise' baseFrequency='${frequency}' numOctaves='${octaves}' seed='${seed}' stitchTiles='stitch'/>` +
+    `<feColorMatrix type='matrix' values='0 0 0 0 ${r} 0 0 0 0 ${g} 0 0 0 0 ${b} ${k} 0 0 0 ${(-k * cut).toFixed(2)}'/>` +
+    `</filter><rect width='${size}' height='${size}' filter='url(#g)'/></svg>`;
+  return svgUrl(svg);
+}
+
+/** A four-point star centred on (x, y): four concave curves through the middle. */
+function starPath(x: number, y: number, r: number): string {
+  const p = (n: number) => n.toFixed(1);
+  return (
+    `M${p(x)} ${p(y - r)}Q${p(x)} ${p(y)} ${p(x + r)} ${p(y)}` +
+    `Q${p(x)} ${p(y)} ${p(x)} ${p(y + r)}Q${p(x)} ${p(y)} ${p(x - r)} ${p(y)}` +
+    `Q${p(x)} ${p(y)} ${p(x)} ${p(y - r)}Z`
+  );
+}
+
+/**
+ * A sparse tile of sparkles: mostly 1-2px dots, plus a few four-point stars.
+ *
+ * Two of these at prime sizes (97px and 131px) repeat on a common period of
+ * 12707px, so the eye never finds the grid. Positions are snapped to the pixel
+ * centre so a 1px dot stays one crisp pixel rather than a grey smudge across
+ * four.
+ */
+export function sparkleDataUri(
+  size: number,
+  seed: number,
+  dots: number,
+  stars: number,
+  speck: string,
+  glint: string,
+): string {
+  const rand = seeded(seed);
+  let body = "";
+  for (let i = 0; i < dots; i++) {
+    const r = rand() < 0.65 ? 0.5 : 1;
+    const x = Math.floor(2 + rand() * (size - 4)) + 0.5;
+    const y = Math.floor(2 + rand() * (size - 4)) + 0.5;
+    body += `<circle cx='${x}' cy='${y}' r='${r}' fill='${rand() < 0.55 ? glint : speck}'/>`;
+  }
+  for (let i = 0; i < stars; i++) {
+    const r = 3 + rand() * 2;
+    const x = r + 1 + rand() * (size - 2 * r - 2);
+    const y = r + 1 + rand() * (size - 2 * r - 2);
+    body += `<path d='${starPath(x, y, r)}' fill='${glint}'/>`;
+  }
+  return svgUrl(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${body}</svg>`,
+  );
+}
+
+/** How see-through a heart is. Baked into the fill so opacity stays free to fade it. */
+export const HEART_ALPHA = 0.4;
+
+/**
+ * A style's accent: a light colour where the seat can afford one that reads
+ * against its base, the shadow where it cannot. Blue and green sit so close
+ * to the lightest the white number allows that a light heart or ray would be
+ * invisible on them; a deep one still reads.
+ */
+export function accentFor(base: string, lo: string, hi: string): string {
+  const light = reachToward(hi, "#ffffff", base);
+  return contrastRatio(light, base) >= 1.3 ? light : lo;
+}
+
+/** The heart's colour (see accentFor). */
+export const heartInk = accentFor;
+
+/** One heart, see-through, as a data URI every heart on the tile shares. */
+export function heartDataUri(colour: string): string {
+  return svgUrl(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='29' viewBox='0 0 32 29'>` +
+      `<path d='M16 28.5C6 21 0 15.5 0 8.6 0 3.8 3.7 0 8.4 0c3.1 0 5.9 1.7 7.6 4.3C17.7 1.7 20.5 0 23.6 0 28.3 0 32 3.8 32 8.6 32 15.5 26 21 16 28.5Z' ` +
+      `fill='${colour}' fill-opacity='${HEART_ALPHA}'/></svg>`,
+  );
+}
+
+/** Fissure's network lives in a square of this many units, cropped to the tile. */
+const CRACK_BOX = 400;
+
+/**
+ * A crack network: a few long fractures wandering in from the edges, each
+ * shedding short branches. A random walk with a jittered heading that keeps
+ * pulling back toward its course, so it zigzags like a fracture rather than
+ * curling like a vein; seeded so every device draws the same stone.
+ *
+ * Returned as width tiers -- each tier one path stroked at one relative width
+ * -- because a fracture is widest where it entered and thins toward its tip.
+ * A uniform stroke read as neon wire, not cracked stone.
+ */
+export function crackNetwork(seed: number): { d: string; w: number }[] {
+  const rand = seeded(seed);
+  const f = (n: number) => n.toFixed(1);
+  const TIERS = [1, 0.66, 0.4, 0.24];
+  const tiers = TIERS.map(() => "");
+  const walk = (x0: number, y0: number, heading: number, steps: number, len: number, from: number) => {
+    let x = x0;
+    let y = y0;
+    let a = heading;
+    for (let i = 0; i < steps; i++) {
+      a += (rand() - 0.5) * 1.15 + (heading - a) * 0.3;
+      const l = len * (0.5 + rand());
+      const nx = x + Math.cos(a) * l;
+      const ny = y + Math.sin(a) * l;
+      // Thins along its length: the first stretch at its own tier, the rest
+      // one or two tiers finer.
+      const tier = Math.min(TIERS.length - 1, from + Math.floor((i / steps) * 2.4));
+      tiers[tier] += `M${f(x)} ${f(y)}L${f(nx)} ${f(ny)}`;
+      x = nx;
+      y = ny;
+      if (from === 0 && i > 1 && rand() < 0.32) {
+        const turn = (rand() < 0.5 ? -1 : 1) * (0.55 + rand() * 0.6);
+        walk(x, y, a + turn, 3 + Math.floor(rand() * 4), len * 0.6, Math.min(TIERS.length - 1, tier + 1));
+      }
+    }
+  };
+  // Entry points round the edge, each aimed roughly across the stone.
+  const B = CRACK_BOX;
+  const entries: [number, number, number][] = [
+    [0, B * 0.28, 0.25],
+    [B, B * 0.12, Math.PI - 0.5],
+    [B * 0.34, B, -Math.PI / 2 + 0.35],
+    [B, B * 0.78, Math.PI + 0.3],
+    [B * 0.12, 0, Math.PI / 2 - 0.2],
+  ];
+  for (const [x, y, h] of entries) walk(x, y, h, 15 + Math.floor(rand() * 6), 18, 0);
+  return TIERS.map((w, i) => ({ d: tiers[i], w })).filter((t) => t.d !== "");
+}
+
+const CRACKS = crackNetwork(5);
+
+/**
+ * Fissure's two images. The cracks: a rim in the shadow colour with a thin
+ * core of the glow colour, crisp. The glow: the same paths stroked wide in
+ * the glow colour and blurred inside the SVG, so the blur is rasterised once
+ * with the image -- never a live CSS filter -- and only its opacity moves.
+ */
+export function fissureDataUris(rim: string, glow: string): { cracks: string; glow: string } {
+  const B = CRACK_BOX;
+  const head = `<svg xmlns='http://www.w3.org/2000/svg' width='${B}' height='${B}' viewBox='0 0 ${B} ${B}'>`;
+  const g = `fill='none' stroke-linecap='round' stroke-linejoin='round'`;
+  const stroke = (colour: string, width: number) =>
+    CRACKS.map((t) => `<path d='${t.d}' stroke='${colour}' stroke-width='${(t.w * width).toFixed(2)}'/>`).join("");
+  const cracks = head + `<g ${g}>` + stroke(rim, 5) + stroke(glow, 1.7) + `</g></svg>`;
+  const halo =
+    head +
+    `<filter id='b' x='-10%' y='-10%' width='120%' height='120%'><feGaussianBlur stdDeviation='5'/></filter>` +
+    `<g ${g} filter='url(#b)'>` +
+    stroke(glow, 9) +
+    `</g></svg>`;
+  return { cracks: svgUrl(cracks), glow: svgUrl(halo) };
+}
+
+/**
+ * The stone: the base pulled toward a deep, desaturated version of itself as
+ * far as the life total allows. Under white ink that is all the way, so the
+ * stone is dark and the glow reads as light through cracks; under black ink
+ * (gold) it stops where the black number would start to sink, which keeps the
+ * same ink the base implies -- nothing has to guess a second text colour.
+ */
+export function stoneFor(base: string): string {
+  return reachToward(base, mixOklab(base, "#121212", 0.62), base);
+}
+
+type Thread = "base" | "lo" | "hi";
+
+/** Tartan's sett: the run of thread colours and widths (px) that repeats. */
+export const TARTAN_SETT: [Thread, number][] = [
+  ["lo", 14],
+  ["base", 4],
+  ["lo", 3],
+  ["base", 20],
+  ["hi", 3],
+  ["base", 20],
+];
+
+/**
+ * Where two threads of different colours cross, a woven cloth shows them
+ * half and half. That is drawn here as one OPAQUE colour, the OKLab midpoint:
+ * two translucent bands laid over each other would average through sRGB and
+ * go to mud, and would show the top band's colour more than the bottom's.
+ * Each blend is clamped like every other colour a look paints.
+ */
+export function tartanCrossing(a: string, b: string, base: string): string {
+  return a === b ? a : withinInk(mixOklab(a, b, 0.5), base);
+}
+
+/**
+ * One repeat of the plaid as an SVG tile: the warp runs the sett across, the
+ * weft runs it down, and every cell of the grid is the crossing of the two.
+ * Integer edges keep every band crisp.
+ */
+export function tartanDataUri(base: string, lo: string, hi: string): { uri: string; size: number; colours: string[] } {
+  const thread: Record<Thread, string> = { base, lo, hi };
+  const size = TARTAN_SETT.reduce((n, [, w]) => n + w, 0);
+  const used = new Set<string>();
+  let body = "";
+  let y = 0;
+  for (const [weft, h] of TARTAN_SETT) {
+    let x = 0;
+    for (const [warp, w] of TARTAN_SETT) {
+      const c = tartanCrossing(thread[warp], thread[weft], base);
+      used.add(c);
+      body += `<rect x='${x}' y='${y}' width='${w}' height='${h}' fill='${c}'/>`;
+      x += w;
+    }
+    y += h;
+  }
+  return {
+    uri: svgUrl(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' shape-rendering='crispEdges'>${body}</svg>`,
+    ),
+    size,
+    colours: [...used],
+  };
 }
 
 /**
@@ -238,9 +570,15 @@ export function allLookIds(): string[] {
  * catalogue test, which iterates allLookIds() and never sees it.
  */
 function paletteFor(base: string): { lo: string; hi: string } {
+  // `within` clamps against the ink of the colour it is handed, which after
+  // the hue rotation is not always the base's ink: #ff8800 takes black text,
+  // but rotated toward red it would take white, so its shadow was clamped the
+  // wrong way and came out at 2.6:1. withinInk re-checks against the ink the
+  // tile really uses. It leaves any colour that already passes untouched, so
+  // no preset changes.
   return {
-    lo: within(rotateHue(base, -22, 0.05), LO),
-    hi: within(rotateHue(base, 20, 0.08), HI),
+    lo: withinInk(within(rotateHue(base, -22, 0.05), LO), base),
+    hi: withinInk(within(rotateHue(base, 20, 0.08), HI), base),
   };
 }
 
@@ -294,6 +632,52 @@ function build(
   };
   if (style.id === "smoke") vars["--look-noise"] = noiseDataUri(hi, 0.022, 4, 11, 0.78);
   if (style.id === "marble") vars["--look-noise"] = noiseDataUri(hi, 0.014, 5, 3, 0.88);
+  // Colours a style paints beyond base, lo and hi. Each one is derived inside
+  // the contrast clamp and listed here so looks.test.ts checks it.
+  const extra: string[] = [];
+  if (style.id === "glitter") {
+    const { ground, speck, glint } = glitterInks(base, lo, hi);
+    vars["--look-ground"] = ground;
+    vars["--look-grain"] = grainDataUri(speck, 0.7, 7);
+    vars["--look-spark-a"] = sparkleDataUri(97, 3, 11, 3, speck, glint);
+    vars["--look-spark-b"] = sparkleDataUri(131, 8, 17, 3, speck, glint);
+    extra.push(ground, speck, glint);
+  }
+  if (style.id === "hearts") {
+    const heart = heartInk(base, lo, hi);
+    vars["--look-heart"] = heartDataUri(heart);
+    extra.push(heart);
+  }
+  if (style.id === "foil") {
+    // The brightest light the seat can afford, so the sweep reads as a shine
+    // rather than a tint.
+    const sheen = reachToward(hi, "#ffffff", base);
+    vars["--look-sheen"] = sheen;
+    extra.push(sheen);
+  }
+  if (style.id === "fissure") {
+    const stone = stoneFor(base);
+    const art = fissureDataUris(lo, hi);
+    vars["--look-stone"] = stone;
+    // Soft mottling in the shadow colour, so the stone is not a flat fill.
+    vars["--look-mottle"] = grainDataUri(lo, 0.5, 13, 260, { frequency: 0.03, octaves: 4, k: 1.3 });
+    vars["--look-cracks"] = art.cracks;
+    vars["--look-glow"] = art.glow;
+    extra.push(stone);
+  }
+  if (style.id === "radiance") {
+    // Three quarters of the way to the accent: full white rays on gold were a
+    // shout across the table, and the blend keeps every ray inside the clamp.
+    const ray = withinInk(mixOklab(base, accentFor(base, lo, hi), 0.75), base);
+    vars["--look-ray"] = ray;
+    extra.push(ray);
+  }
+  if (style.id === "tartan") {
+    const plaid = tartanDataUri(base, lo, hi);
+    vars["--look-tartan"] = plaid.uri;
+    vars["--look-sett"] = `${plaid.size}px`;
+    extra.push(...plaid.colours);
+  }
   const named = HUES.find((h) => h.base === base);
   return {
     id: lookId(colourSpec.join("~"), style.id, mixAmount),
@@ -309,7 +693,8 @@ function build(
     vars,
     animated: style.animated,
     layers: style.layers,
-    paintedColours: style.id === "solid" ? [base] : [base, lo, hi],
+    directional: style.directional === true,
+    paintedColours: style.id === "solid" ? [base] : [base, lo, hi, ...extra],
   };
 }
 
@@ -343,6 +728,7 @@ export function resolveLook(
     },
     animated: false,
     layers: 0,
+    directional: false,
     paintedColours: [color],
   };
   if (!lookId) return fallback;

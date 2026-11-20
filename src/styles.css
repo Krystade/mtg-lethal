@@ -2012,6 +2012,15 @@ input[type="text"] {
   );
 }
 
+/* Tartan: woven plaid in the seat's colours. One repeat is baked as an SVG
+   tile in looks.ts, because the crossings are the whole point: where two
+   threads of different colours cross they need a colour of their own, an
+   opaque OKLab blend, and two overlaid gradients can only paint one band on
+   top of the other. */
+.look[data-style="tartan"] {
+  background: var(--look-tartan) 0 0 / var(--look-sett) var(--look-sett) repeat, var(--look-base);
+}
+
 /* --- animated ---
    Every style moves by translation, scale or noise. Nothing rotates: a
    rotating element has a fixed pivot the eye locks onto, which reads
@@ -2185,6 +2194,386 @@ input[type="text"] {
 @keyframes lkMarble {
   0%, 100% { transform: scale(1) translate(0, 0); }
   50% { transform: scale(1.16) translate(-3%, 2%); }
+}
+
+/* Glitter: a static field of hard specks on the tile itself, and two sparse
+   sparkle tiles (97px and 131px, primes, so they never line up) whose opacity
+   alone winks on mismatched periods. Nothing moves and nothing re-rasterises:
+   the eye reads one group brightening while the other fades as flecks
+   catching the light. A static radial mask thins the sparkles behind the life
+   total. */
+.look[data-style="glitter"] {
+  background: var(--look-grain) 0 0 / 180px 180px repeat, var(--look-ground);
+}
+.look[data-style="glitter"] .tile__look span {
+  inset: 0;
+  background-repeat: repeat;
+  -webkit-mask-image: radial-gradient(ellipse 36% 30% at 50% 50%, rgba(0, 0, 0, 0.25) 35%, #000 100%);
+  mask-image: radial-gradient(ellipse 36% 30% at 50% 50%, rgba(0, 0, 0, 0.25) 35%, #000 100%);
+}
+.look[data-style="glitter"] .tile__look span:nth-child(1) {
+  background-image: var(--look-spark-a);
+  background-size: 97px 97px;
+  animation: lkWink calc(1.7s / var(--look-speed, 1)) ease-in-out infinite;
+}
+.look[data-style="glitter"] .tile__look span:nth-child(2) {
+  background-image: var(--look-spark-b);
+  background-size: 131px 131px;
+  background-position: 41px 23px;
+  animation: lkWink calc(2.3s / var(--look-speed, 1)) ease-in-out calc(-1.1s / var(--look-speed, 1)) infinite;
+}
+@keyframes lkWink {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.9; }
+}
+/* Calm: a pause would freeze each group wherever it happened to be, often
+   near-invisible. Both groups rest at the same middling strength instead. */
+.app--still .look[data-style="glitter"] .tile__look span:nth-child(n),
+.tile--out.look[data-style="glitter"] .tile__look span:nth-child(n) {
+  animation: none;
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="glitter"] .tile__look span:nth-child(n) {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* A directional look's frame: the tile turned to face its owner (sized and
+   rotated inline, see LookLayers). A size container, so the layers inside
+   travel in units of the frame however the seat is turned. */
+.tile__look .tile__look-dir {
+  left: 50%;
+  top: 50%;
+  container-type: size;
+  overflow: hidden;
+}
+
+/* Hearts: see-through hearts float up away from their owner and fade out.
+   Each is a small layer moved by transform (rise and grow) and opacity
+   (fade), with a gentle sideways sway on the separate `translate` property so
+   the two never fight over one value. Their see-through alpha is baked into
+   the shared heart image, which leaves opacity free for the fade. Varied
+   sizes, lanes and periods, and negative delays so the tile starts full. A
+   static mask in the owner's frame thins them as they pass the life total. */
+.look[data-style="hearts"] .tile__look-dir {
+  -webkit-mask-image: radial-gradient(ellipse 30% 24% at 50% 50%, rgba(0, 0, 0, 0.2) 30%, #000 100%);
+  mask-image: radial-gradient(ellipse 30% 24% at 50% 50%, rgba(0, 0, 0, 0.2) 30%, #000 100%);
+}
+.look[data-style="hearts"] .tile__look-dir > span {
+  top: 100%;
+  left: var(--x);
+  width: var(--s);
+  aspect-ratio: 32 / 29;
+  margin-left: calc(var(--s) / -2);
+  background: var(--look-heart) center / contain no-repeat;
+  opacity: 0;
+  animation:
+    lkHeartRise calc(var(--d) / var(--look-speed, 1)) linear calc(var(--d) * var(--at) / var(--look-speed, 1)) infinite,
+    lkHeartSway calc(var(--sw) / var(--look-speed, 1)) ease-in-out calc(var(--sw) * var(--at) / var(--look-speed, 1)) infinite alternate;
+}
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(1) { --x: 9%;  --s: 17cqmin; --d: 9s;  --sw: 3.1s; --at: -0.02; --rest: 58cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(2) { --x: 24%; --s: 12cqmin; --d: 12s; --sw: 2.6s; --at: -0.55; --rest: 24cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(3) { --x: 38%; --s: 21cqmin; --d: 10s; --sw: 3.4s; --at: -0.3;  --rest: 22cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(4) { --x: 53%; --s: 14cqmin; --d: 13s; --sw: 2.9s; --at: -0.82; --rest: 88cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(5) { --x: 67%; --s: 18cqmin; --d: 8s;  --sw: 3.2s; --at: -0.15; --rest: 30cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(6) { --x: 81%; --s: 13cqmin; --d: 11s; --sw: 2.7s; --at: -0.66; --rest: 70cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(7) { --x: 92%; --s: 16cqmin; --d: 7s;  --sw: 3s;   --at: -0.43; --rest: 40cqh; }
+@keyframes lkHeartRise {
+  0% { transform: translateY(0) scale(0.8); opacity: 0; }
+  12% { opacity: 1; }
+  45% { opacity: 0.9; }
+  78% { opacity: 0; }
+  100% { transform: translateY(-130cqh) scale(1.1); opacity: 0; }
+}
+@keyframes lkHeartSway {
+  from { translate: -2.5cqw 0; }
+  to { translate: 2.5cqw 0; }
+}
+/* Calm: an explicit pose of five resting hearts, low on the owner's side and
+   out at the edges, rather than seven frozen wherever they happened to be. */
+.app--still .look[data-style="hearts"] .tile__look-dir > span:nth-child(n) {
+  animation: none;
+  opacity: 0.875;
+  transform: translateY(calc(-1 * var(--rest))) scale(1);
+}
+.app--still .look[data-style="hearts"] .tile__look-dir > span:nth-child(n + 6) {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="hearts"] .tile__look-dir > span:nth-child(n) {
+    animation: none;
+    opacity: 0.875;
+    transform: translateY(calc(-1 * var(--rest))) scale(1);
+  }
+  .look[data-style="hearts"] .tile__look-dir > span:nth-child(n + 6) {
+    display: none;
+  }
+}
+/* A knocked-out seat has nothing to love. */
+.tile--out.look[data-style="hearts"] .tile__look {
+  display: none;
+}
+
+/* Foil: a fine diagonal etch on the tile, and one narrow band of light that
+   sweeps across in the first 15% of its cycle and then waits offscreen. Each
+   seat starts at a different point in the cycle, so no two tiles ever shine
+   together; the board reads as light catching one card at a time. */
+.look[data-style="foil"] {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--look-lo) 12%, transparent) 0 1px,
+      transparent 1px 3px,
+      color-mix(in srgb, var(--look-hi) 12%, transparent) 3px 4px,
+      transparent 4px 6px
+    ),
+    var(--look-base);
+}
+/* Three tiles wide: a 115deg band slants across more than a tall tile's width,
+   and on a tile-sized layer its ends were cut off square by the layer's own
+   edges. */
+.look[data-style="foil"] .tile__look span {
+  top: 0;
+  bottom: 0;
+  left: -100%;
+  width: 300%;
+  background: linear-gradient(
+    115deg,
+    transparent 44%,
+    color-mix(in srgb, var(--look-sheen) 55%, transparent) 50%,
+    transparent 56%
+  );
+  transform: translateX(-45%);
+  animation: lkFoil calc(9s / var(--look-speed, 1)) ease-in-out infinite;
+}
+/* Tiles are siblings on the board, so their order spaces the shines 1.5s
+   apart: each shine takes 1.35s, so six seats never overlap. */
+.look[data-style="foil"]:nth-child(6n + 2) .tile__look span { animation-delay: calc(-1.5s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 3) .tile__look span { animation-delay: calc(-3s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 4) .tile__look span { animation-delay: calc(-4.5s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 5) .tile__look span { animation-delay: calc(-6s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 6) .tile__look span { animation-delay: calc(-7.5s / var(--look-speed, 1)); }
+@keyframes lkFoil {
+  0% { transform: translateX(-45%); }
+  15%, 100% { transform: translateX(45%); }
+}
+/* Calm: the band parked faintly across a corner, not frozen mid-tile or
+   gone altogether. */
+.app--still .look[data-style="foil"] .tile__look span:nth-child(n),
+.tile--out.look[data-style="foil"] .tile__look span:nth-child(n) {
+  animation: none;
+  transform: translateX(-28%);
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="foil"] .tile__look span:nth-child(n) {
+    animation: none;
+    transform: translateX(-28%);
+    opacity: 0.5;
+  }
+}
+
+/* Fissure: dark cracked stone with light glowing through the cracks - lava on
+   red, ice on blue, rot on green, because the glow is the seat's own
+   highlight. One crack network, stretched once over the tile (cropped, never
+   tiled, so no seams). The glow is blurred inside its SVG and rasterised
+   once; only its opacity breathes. */
+.look[data-style="fissure"] {
+  background: var(--look-mottle) 0 0 / 260px 260px repeat, var(--look-stone);
+}
+.look[data-style="fissure"] .tile__look span {
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+/* One network, mirrored differently per seat, so neighbouring tiles do not
+   wear the same crack like a sticker. Static, so it costs nothing. */
+.look[data-style="fissure"]:nth-child(4n + 2) .tile__look { scale: -1 1; }
+.look[data-style="fissure"]:nth-child(4n + 3) .tile__look { scale: 1 -1; }
+.look[data-style="fissure"]:nth-child(4n + 4) .tile__look { scale: -1 -1; }
+.look[data-style="fissure"] .tile__look span:nth-child(1) {
+  background-image: var(--look-cracks);
+}
+.look[data-style="fissure"] .tile__look span:nth-child(2) {
+  background-image: var(--look-glow);
+  animation: lkFissure calc(7s / var(--look-speed, 1)) ease-in-out infinite;
+}
+/* Neighbouring seats breathe out of step, so the board does not pulse as one. */
+.look[data-style="fissure"]:nth-child(2n) .tile__look span:nth-child(2) { animation-delay: calc(-2.3s / var(--look-speed, 1)); }
+.look[data-style="fissure"]:nth-child(3n) .tile__look span:nth-child(2) { animation-delay: calc(-4.6s / var(--look-speed, 1)); }
+@keyframes lkFissure {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.85; }
+}
+.app--still .look[data-style="fissure"] .tile__look span:nth-child(n),
+.tile--out.look[data-style="fissure"] .tile__look span:nth-child(2) {
+  animation: none;
+}
+.app--still .look[data-style="fissure"] .tile__look span:nth-child(2),
+.tile--out.look[data-style="fissure"] .tile__look span:nth-child(2) {
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="fissure"] .tile__look span:nth-child(n) {
+    animation: none;
+  }
+  .look[data-style="fissure"] .tile__look span:nth-child(2) {
+    opacity: 0.55;
+  }
+}
+
+/* Radiance: sharp sun rays from behind the life total. Hard wedges about 10deg
+   across, centred on the tile, fading into a calm disc of the base where the
+   number sits. The wedge edges get 0.8deg of blend, which is still sharp but
+   does not stair-step.
+
+   The second layer sits half a wedge round, in the middle of each gap, but
+   as a slim ray on a clear ground rather than a full offset copy: a full
+   copy cross-fading over the first spends half its cycle as a flat blend of
+   the two, with no rays at all. Slim rays fading in between the steady ones
+   read as the sun glinting, and nothing turns. */
+.look[data-style="radiance"] .tile__look span {
+  inset: 0;
+}
+.look[data-style="radiance"] .tile__look span:nth-child(1) {
+  background:
+    radial-gradient(circle closest-side at 50% 50%, var(--look-base) 30%, transparent 95%),
+    repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      var(--look-ray) 0deg 4.6deg,
+      var(--look-base) 5.4deg 9.6deg,
+      var(--look-ray) 10deg
+    );
+}
+.look[data-style="radiance"] .tile__look span:nth-child(2) {
+  background:
+    repeating-conic-gradient(
+      from 7deg at 50% 50%,
+      var(--look-ray) 0deg 0.7deg,
+      transparent 1.2deg 9.5deg,
+      var(--look-ray) 10deg
+    );
+  -webkit-mask-image: radial-gradient(circle closest-side at 50% 50%, transparent 30%, #000 70%);
+  mask-image: radial-gradient(circle closest-side at 50% 50%, transparent 30%, #000 70%);
+  opacity: 0;
+  animation: lkRadiance calc(6s / var(--look-speed, 1)) ease-in-out infinite;
+}
+@keyframes lkRadiance {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+/* Calm: the first set of rays alone. */
+.app--still .look[data-style="radiance"] .tile__look span:nth-child(2),
+.tile--out.look[data-style="radiance"] .tile__look span:nth-child(2) {
+  animation: none;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="radiance"] .tile__look span:nth-child(2) {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* Glitch: a clean tile that every few seconds tears sideways into offset
+   slices and snaps back. Three low-alpha strips of the seat's own colours,
+   each idle about 90% of a mismatched 5s / 7s / 11s cycle; a tear is one
+   jump out and one jump back, 0.4s apart, by transform and opacity on
+   steps(). Photosensitivity: the strips are faint and thin, the life total
+   above them never changes, and the three tears are phased a third of a
+   second apart modulo their periods, so however the cycles drift they never
+   land on top of each other. */
+.look[data-style="glitch"] .tile__look-dir > span {
+  left: -8%;
+  width: 116%;
+  opacity: 0;
+}
+.look[data-style="glitch"] .tile__look-dir > span:nth-child(1) {
+  top: 17%;
+  height: 7%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--look-hi) 28%, transparent) 0 34%,
+    transparent 34% 41%,
+    color-mix(in srgb, var(--look-lo) 30%, transparent) 41% 78%,
+    color-mix(in srgb, var(--look-hi) 20%, transparent) 78%
+  );
+  --tear: -6%;
+  animation: lkGlitch1 calc(5s / var(--look-speed, 1)) steps(1, end) var(--glitch-at, 0s) infinite;
+}
+.look[data-style="glitch"] .tile__look-dir > span:nth-child(2) {
+  top: 57%;
+  height: 3.5%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--look-lo) 30%, transparent) 0 55%,
+    color-mix(in srgb, var(--look-hi) 24%, transparent) 55% 88%,
+    transparent 88%
+  );
+  --tear: 4%;
+  animation: lkGlitch2 calc(7s / var(--look-speed, 1)) steps(1, end) var(--glitch-at, 0s) infinite;
+}
+.look[data-style="glitch"] .tile__look-dir > span:nth-child(3) {
+  top: 73%;
+  height: 11%;
+  background: linear-gradient(
+    90deg,
+    transparent 0 12%,
+    color-mix(in srgb, var(--look-hi) 16%, transparent) 12% 63%,
+    color-mix(in srgb, var(--look-lo) 22%, transparent) 63%
+  );
+  --tear: -3%;
+  animation: lkGlitch3 calc(11s / var(--look-speed, 1)) steps(1, end) var(--glitch-at, 0s) infinite;
+}
+/* Seats tear at different moments. One shift for all three strips of a seat
+   keeps their third-of-a-second spacing intact. */
+.look[data-style="glitch"]:nth-child(3n + 2) { --glitch-at: calc(-1.9s / var(--look-speed, 1)); }
+.look[data-style="glitch"]:nth-child(3n + 3) { --glitch-at: calc(-3.4s / var(--look-speed, 1)); }
+/* Tear at 2s of 5, 4.33s of 7, 8.67s of 11: whole seconds apart plus 0, 1/3
+   and 2/3, so any two tears start at least a third of a second apart. Each
+   holds 0.3s, so two never overlap. lookStyles.test.ts reads these numbers
+   back out of this file and checks both claims. */
+@keyframes lkGlitch1 {
+  0% { opacity: 0; transform: translateX(0); }
+  40% { opacity: 1; transform: translateX(var(--tear)); }
+  46%, 100% { opacity: 0; transform: translateX(0); }
+}
+@keyframes lkGlitch2 {
+  0% { opacity: 0; transform: translateX(0); }
+  61.905% { opacity: 1; transform: translateX(var(--tear)); }
+  66.19%, 100% { opacity: 0; transform: translateX(0); }
+}
+@keyframes lkGlitch3 {
+  0% { opacity: 0; transform: translateX(0); }
+  78.788% { opacity: 1; transform: translateX(var(--tear)); }
+  81.515%, 100% { opacity: 0; transform: translateX(0); }
+}
+/* Calm: frozen in one torn position - the look still reads as Glitch. */
+.app--still .look[data-style="glitch"] .tile__look-dir > span:nth-child(n),
+.tile--out.look[data-style="glitch"] .tile__look-dir > span:nth-child(n) {
+  animation: none;
+  opacity: 1;
+  transform: translateX(var(--tear));
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="glitch"] .tile__look-dir > span:nth-child(n) {
+    animation: none;
+    opacity: 1;
+    transform: translateX(var(--tear));
+  }
+}
+/* A swatch is a glance, and Glitch idles clean nine-tenths of the time, so
+   at swatch size it was indistinguishable from Solid. Swatches show it torn;
+   the tile itself, and the new-game editor's big preview, still play it. */
+.stylechip__art[data-style="glitch"] .tile__look-dir > span:nth-child(n),
+.disclose__swatch[data-style="glitch"] .tile__look-dir > span:nth-child(n),
+.rost__swatch[data-style="glitch"] .tile__look-dir > span:nth-child(n) {
+  animation: none;
+  opacity: 1;
+  transform: translateX(var(--tear));
 }
 
 /* Motion governance: one class on the root freezes every look, and an

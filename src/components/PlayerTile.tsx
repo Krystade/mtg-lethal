@@ -14,6 +14,7 @@ import { clampLife } from "../game/life";
 import { isCommanderDamageLethal, isPoisonLethal } from "../game/lethal";
 import { textOn } from "../layout/colors";
 import { resolveLook } from "../layout/looks";
+import { LookLayers } from "./LookLayers";
 import { useLifeFeedback } from "../hooks/useLifeFeedback";
 import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
@@ -893,13 +894,7 @@ export function PlayerTile({
       data-fx={fx?.kind}
       data-fx-level={fx?.intensity}
     >
-      {look.layers > 0 && (
-        <div className="tile__look" aria-hidden>
-          {Array.from({ length: look.layers }, (_, i) => (
-            <span key={i} />
-          ))}
-        </div>
-      )}
+      <LookLayers look={look} rotation={placement.rotation} as="div" />
       {cell && (
         <svg className="tile__ring" aria-hidden="true" width={cell.box.w} height={cell.box.h}>
           <path d={cell.ring} />
