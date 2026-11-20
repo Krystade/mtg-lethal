@@ -12,6 +12,18 @@ export function colorForSeat(seat: number): string {
   return PLAYER_COLORS[seat % PLAYER_COLORS.length];
 }
 
+/**
+ * The first seat colour nobody in `used` is showing, for a newly added seat.
+ * `used` must hold the colours players actually show (playerColour), not
+ * their seat defaults, or a new seat can land on a recoloured player's colour.
+ * When all six are taken it falls back to `fallbackSeat`'s colour.
+ */
+export function freeSeatColour(used: Iterable<string>, fallbackSeat: number): string {
+  const taken = new Set([...used].map((c) => c.toLowerCase()));
+  const free = PLAYER_COLORS.find((c) => !taken.has(c.toLowerCase()));
+  return free ?? colorForSeat(fallbackSeat);
+}
+
 function rgb(hex: string): [number, number, number] {
   const m = hex.replace("#", "");
   const full =

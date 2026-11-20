@@ -1,7 +1,8 @@
 import { useEffect, useReducer, useRef, type CSSProperties, type PointerEvent as RPointerEvent } from "react";
 import { useStore } from "../state/store";
 import { useLayoutEdit } from "./layoutEdit";
-import { colorForSeat, textOn } from "../layout/colors";
+import { colorForSeat, freeSeatColour, textOn } from "../layout/colors";
+import { playerColour } from "../layout/looks";
 import { cellInfo, powerCells, roundPoly, type CellInfo, type Pt, type Rect } from "../layout/power";
 import {
   BUILTIN_TEMPLATES,
@@ -95,17 +96,18 @@ export function FreeformEditor({ W, H }: Props) {
   const st = stRef.current;
 
   // ---- identity: existing players keep theirs, new seats get a free colour ----
+  // Both read the colour a player's tile shows, not their seat default, so a
+  // recoloured player looks right here and a new seat never copies them. The
+  // choice for a new seat mirrors applyFreeform's, so Confirm keeps it.
   const byId = new Map(players.map((p) => [p.id, p]));
   const colorOf = (() => {
-    const used = new Set(st.seats.filter((s) => byId.has(s.playerId)).map((s) => byId.get(s.playerId)!.color));
+    const used = new Set(st.seats.filter((s) => byId.has(s.playerId)).map((s) => playerColour(byId.get(s.playerId)!)));
     const out = new Map<string, string>();
     for (const s of st.seats) {
       const p = byId.get(s.playerId);
-      if (p) out.set(s.playerId, p.color);
+      if (p) out.set(s.playerId, playerColour(p));
       else {
-        let k = 0;
-        while (k < 6 && used.has(colorForSeat(k))) k++;
-        const c = colorForSeat(k < 6 ? k : out.size);
+        const c = freeSeatColour(used, out.size);
         used.add(c);
         out.set(s.playerId, c);
       }

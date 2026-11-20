@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../state/store";
 import { colorForSeat } from "../layout/colors";
+import { playerColour } from "../layout/looks";
 import { allBuiltInPresets } from "../layout/presets";
 import type { FreeSeat, LayoutConfig, Placement, Rotation } from "../state/types";
 import {
@@ -275,6 +276,14 @@ function CustomEditor({
   onSave: (name: string, l: LayoutConfig) => void;
 }) {
   const live = useStore((s) => s.game.layout);
+  const players = useStore((s) => s.game.players);
+  // Seat n is player p<n>: paint it in the colour that player's tile shows,
+  // which a recolour changes and the seat default never does. A seat nobody
+  // sits in yet gets the default a new player there would be created with.
+  const seatColour = (seat: number) => {
+    const p = players.find((q) => q.id === `p${seat}`);
+    return p ? playerColour(p) : colorForSeat(seat);
+  };
   // The painter only paints rectangles. A freeform layout opens on the grid
   // closest to its cells (the preset if no grid keeps every seat whole).
   const [{ current, approx }] = useState(() => {
@@ -412,7 +421,7 @@ function CustomEditor({
           <button
             key={seat}
             className={`palette__swatch${paint === seat ? " is-on" : ""}`}
-            style={{ background: colorForSeat(seat) }}
+            style={{ background: seatColour(seat) }}
             onClick={() => setPaint(seat)}
           >
             {seat + 1}
@@ -438,7 +447,7 @@ function CustomEditor({
             <button
               key={`${r}-${c}`}
               className="editor__cell"
-              style={{ background: seat >= 0 ? colorForSeat(seat) : "#1c1c1e" }}
+              style={{ background: seat >= 0 ? seatColour(seat) : "#1c1c1e" }}
               onClick={() => paintCell(r, c)}
             >
               {seat >= 0 && (
@@ -459,7 +468,7 @@ function CustomEditor({
               <button
                 key={seat}
                 className="palette__swatch"
-                style={{ background: colorForSeat(seat) }}
+                style={{ background: seatColour(seat) }}
                 onClick={() => cycleRotation(seat)}
               >
                 <span style={{ transform: `rotate(${rotations[seat] ?? 0}deg)` }}>

@@ -25,7 +25,8 @@ import {
   clampStartingLife,
 } from "../game/life";
 import { advanceTurn, tickTurn } from "../game/turn";
-import { colorForSeat } from "../layout/colors";
+import { colorForSeat, freeSeatColour } from "../layout/colors";
+import { playerColour } from "../layout/looks";
 import { clockwiseSeatOrder } from "../layout/order";
 import { defaultLayoutFor, isStandardGrid } from "../layout/presets";
 import { layoutCoversSeats } from "../layout/validate";
@@ -864,7 +865,10 @@ export const useStore = create<StoreState>()(
             if (k && old.has(k) && !idMap.has(k)) idMap.set(k, ids[i]);
           });
           const kept = [...idMap.keys()].map((k) => old.get(k)!);
-          const usedColors = new Set(kept.map((p) => p.color));
+          // The colours kept players show, not their seat defaults, so a new
+          // seat never copies a recoloured player. Edit layout previews the
+          // same choice.
+          const usedColors = new Set(kept.map(playerColour));
           const usedNames = new Set(kept.map((p) => p.name));
           const players: Player[] = keep.map((k, i) => {
             const id = ids[i];
@@ -883,9 +887,7 @@ export const useStore = create<StoreState>()(
               return { ...src, id, commanderDamage, pinned };
             }
             const fresh = createPlayer(i, s.game.startingLife);
-            let seat = 0;
-            while (seat < 6 && usedColors.has(colorForSeat(seat))) seat++;
-            fresh.color = colorForSeat(seat < 6 ? seat : i);
+            fresh.color = freeSeatColour(usedColors, i);
             usedColors.add(fresh.color);
             let nm = 1;
             while (usedNames.has(`P${nm}`)) nm++;
