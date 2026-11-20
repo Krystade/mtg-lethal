@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   HEART_ALPHA,
   accentFor,
@@ -219,6 +221,50 @@ describe("radiance", () => {
   it("draws dark rays where light ones would vanish", () => {
     const l = resolveLook("green-radiance", "#000");
     expect(contrastRatio("#ffffff", l.vars["--look-ray"])).toBeGreaterThan(contrastRatio("#ffffff", l.base));
+  });
+});
+
+describe("glitch timing", () => {
+  // Photosensitivity rests on numbers that live in styles.css, so they are
+  // read back out of it rather than restated here, where they could drift.
+  const css = readFileSync(join(process.cwd(), "src/styles.css"), "utf8");
+  const strips = [1, 2, 3].map((n) => {
+    const period = Number(css.match(new RegExp(`lkGlitch${n} calc\\(([\\d.]+)s`))?.[1]);
+    const body = css.match(new RegExp(`@keyframes lkGlitch${n} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? "";
+    const stops = [...body.matchAll(/([\d.]+)%(?:, 100%)? \{ opacity: (\d)/g)].map((m) => ({
+      at: Number(m[1]) / 100,
+      on: m[2] === "1",
+    }));
+    const on = stops.find((s) => s.on)!.at;
+    const off = stops.find((s) => !s.on && s.at > on)!.at;
+    return { period, start: on * period, end: off * period };
+  });
+
+  it("finds three strips on mismatched 5s, 7s and 11s cycles", () => {
+    expect(strips.map((s) => s.period)).toEqual([5, 7, 11]);
+  });
+
+  it("idles each strip about 90% of its cycle or more", () => {
+    for (const s of strips) expect((s.end - s.start) / s.period).toBeLessThan(0.1);
+  });
+
+  it("makes at most two jumps a second on any strip", () => {
+    // A tear is one jump out and one back; the next tear is a whole cycle on.
+    for (const s of strips) {
+      expect(s.end - s.start).toBeGreaterThan(0.25);
+      expect(s.period - (s.end - s.start)).toBeGreaterThan(1);
+    }
+  });
+
+  it("never lets two strips tear at once, however the cycles drift", () => {
+    // Coprime periods meet at every whole-second offset, so what matters is
+    // each pair's start times modulo one second.
+    for (let i = 0; i < 3; i++)
+      for (let j = i + 1; j < 3; j++) {
+        const d = (((strips[j].start - strips[i].start) % 1) + 1) % 1;
+        const gap = Math.min(d, 1 - d);
+        expect(gap).toBeGreaterThanOrEqual(Math.max(strips[i].end - strips[i].start, strips[j].end - strips[j].start));
+      }
   });
 });
 

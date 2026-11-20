@@ -68,6 +68,9 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "foil", name: "Foil", animated: true, layers: 1 },
   { id: "fissure", name: "Fissure", animated: true, layers: 2 },
   { id: "radiance", name: "Radiance", animated: true, layers: 2 },
+  // Directional: a tear runs along the owner's lines of text, like a bad
+  // scanline. Unturned, on a side seat it tore across the number instead.
+  { id: "glitch", name: "Glitch", animated: true, layers: 3, directional: true },
 ];
 
 /**

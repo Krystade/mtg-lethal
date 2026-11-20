@@ -2429,6 +2429,94 @@ input[type="text"] {
   }
 }
 
+/* Glitch: a clean tile that every few seconds tears sideways into offset
+   slices and snaps back. Three low-alpha strips of the seat's own colours,
+   each idle about 90% of a mismatched 5s / 7s / 11s cycle; a tear is one
+   jump out and one jump back, 0.4s apart, by transform and opacity on
+   steps(). Photosensitivity: the strips are faint and thin, the life total
+   above them never changes, and the three tears are phased a third of a
+   second apart modulo their periods, so however the cycles drift they never
+   land on top of each other. */
+.look[data-style="glitch"] .tile__look-dir > span {
+  left: -8%;
+  width: 116%;
+  opacity: 0;
+}
+.look[data-style="glitch"] .tile__look-dir > span:nth-child(1) {
+  top: 17%;
+  height: 7%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--look-hi) 28%, transparent) 0 34%,
+    transparent 34% 41%,
+    color-mix(in srgb, var(--look-lo) 30%, transparent) 41% 78%,
+    color-mix(in srgb, var(--look-hi) 20%, transparent) 78%
+  );
+  --tear: -6%;
+  animation: lkGlitch1 calc(5s / var(--look-speed, 1)) steps(1, end) var(--glitch-at, 0s) infinite;
+}
+.look[data-style="glitch"] .tile__look-dir > span:nth-child(2) {
+  top: 57%;
+  height: 3.5%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--look-lo) 30%, transparent) 0 55%,
+    color-mix(in srgb, var(--look-hi) 24%, transparent) 55% 88%,
+    transparent 88%
+  );
+  --tear: 4%;
+  animation: lkGlitch2 calc(7s / var(--look-speed, 1)) steps(1, end) var(--glitch-at, 0s) infinite;
+}
+.look[data-style="glitch"] .tile__look-dir > span:nth-child(3) {
+  top: 73%;
+  height: 11%;
+  background: linear-gradient(
+    90deg,
+    transparent 0 12%,
+    color-mix(in srgb, var(--look-hi) 16%, transparent) 12% 63%,
+    color-mix(in srgb, var(--look-lo) 22%, transparent) 63%
+  );
+  --tear: -3%;
+  animation: lkGlitch3 calc(11s / var(--look-speed, 1)) steps(1, end) var(--glitch-at, 0s) infinite;
+}
+/* Seats tear at different moments. One shift for all three strips of a seat
+   keeps their third-of-a-second spacing intact. */
+.look[data-style="glitch"]:nth-child(3n + 2) { --glitch-at: calc(-1.9s / var(--look-speed, 1)); }
+.look[data-style="glitch"]:nth-child(3n + 3) { --glitch-at: calc(-3.4s / var(--look-speed, 1)); }
+/* Tear at 2s of 5, 4.33s of 7, 8.67s of 11: whole seconds apart plus 0, 1/3
+   and 2/3, so any two tears start at least a third of a second apart. Each
+   holds 0.3s, so two never overlap. lookStyles.test.ts reads these numbers
+   back out of this file and checks both claims. */
+@keyframes lkGlitch1 {
+  0% { opacity: 0; transform: translateX(0); }
+  40% { opacity: 1; transform: translateX(var(--tear)); }
+  46%, 100% { opacity: 0; transform: translateX(0); }
+}
+@keyframes lkGlitch2 {
+  0% { opacity: 0; transform: translateX(0); }
+  61.905% { opacity: 1; transform: translateX(var(--tear)); }
+  66.19%, 100% { opacity: 0; transform: translateX(0); }
+}
+@keyframes lkGlitch3 {
+  0% { opacity: 0; transform: translateX(0); }
+  78.788% { opacity: 1; transform: translateX(var(--tear)); }
+  81.515%, 100% { opacity: 0; transform: translateX(0); }
+}
+/* Calm: frozen in one torn position - the look still reads as Glitch. */
+.app--still .look[data-style="glitch"] .tile__look-dir > span:nth-child(n),
+.tile--out.look[data-style="glitch"] .tile__look-dir > span:nth-child(n) {
+  animation: none;
+  opacity: 1;
+  transform: translateX(var(--tear));
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="glitch"] .tile__look-dir > span:nth-child(n) {
+    animation: none;
+    opacity: 1;
+    transform: translateX(var(--tear));
+  }
+}
+
 /* Motion governance: one class on the root freezes every look, and an
    eliminated seat never animates. Pausing rather than unmounting keeps
    resuming instant and avoids recomputing layout.
