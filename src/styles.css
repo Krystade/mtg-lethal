@@ -2376,6 +2376,59 @@ input[type="text"] {
   }
 }
 
+/* Radiance: sharp sun rays from behind the life total. Hard wedges about 10deg
+   across, centred on the tile, fading into a calm disc of the base where the
+   number sits. The wedge edges get 0.8deg of blend, which is still sharp but
+   does not stair-step.
+
+   The second layer sits half a wedge round, in the middle of each gap, but
+   as a slim ray on a clear ground rather than a full offset copy: a full
+   copy cross-fading over the first spends half its cycle as a flat blend of
+   the two, with no rays at all. Slim rays fading in between the steady ones
+   read as the sun glinting, and nothing turns. */
+.look[data-style="radiance"] .tile__look span {
+  inset: 0;
+}
+.look[data-style="radiance"] .tile__look span:nth-child(1) {
+  background:
+    radial-gradient(circle closest-side at 50% 50%, var(--look-base) 30%, transparent 95%),
+    repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      var(--look-ray) 0deg 4.6deg,
+      var(--look-base) 5.4deg 9.6deg,
+      var(--look-ray) 10deg
+    );
+}
+.look[data-style="radiance"] .tile__look span:nth-child(2) {
+  background:
+    repeating-conic-gradient(
+      from 7deg at 50% 50%,
+      var(--look-ray) 0deg 0.7deg,
+      transparent 1.2deg 9.5deg,
+      var(--look-ray) 10deg
+    );
+  -webkit-mask-image: radial-gradient(circle closest-side at 50% 50%, transparent 30%, #000 70%);
+  mask-image: radial-gradient(circle closest-side at 50% 50%, transparent 30%, #000 70%);
+  opacity: 0;
+  animation: lkRadiance calc(6s / var(--look-speed, 1)) ease-in-out infinite;
+}
+@keyframes lkRadiance {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+/* Calm: the first set of rays alone. */
+.app--still .look[data-style="radiance"] .tile__look span:nth-child(2),
+.tile--out.look[data-style="radiance"] .tile__look span:nth-child(2) {
+  animation: none;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="radiance"] .tile__look span:nth-child(2) {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* Motion governance: one class on the root freezes every look, and an
    eliminated seat never animates. Pausing rather than unmounting keeps
    resuming instant and avoids recomputing layout.

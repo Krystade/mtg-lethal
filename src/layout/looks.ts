@@ -67,6 +67,7 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "hearts", name: "Hearts", animated: true, layers: 7, directional: true },
   { id: "foil", name: "Foil", animated: true, layers: 1 },
   { id: "fissure", name: "Fissure", animated: true, layers: 2 },
+  { id: "radiance", name: "Radiance", animated: true, layers: 2 },
 ];
 
 /**
@@ -311,15 +312,18 @@ export function sparkleDataUri(
 export const HEART_ALPHA = 0.4;
 
 /**
- * The heart's colour: a light one where the seat can afford a light colour
- * that reads against its base, the shadow where it cannot. Blue and green sit
- * so close to the lightest the white number allows that a light heart would
- * be invisible on them; a deep translucent one still reads.
+ * A style's accent: a light colour where the seat can afford one that reads
+ * against its base, the shadow where it cannot. Blue and green sit so close
+ * to the lightest the white number allows that a light heart or ray would be
+ * invisible on them; a deep one still reads.
  */
-export function heartInk(base: string, lo: string, hi: string): string {
+export function accentFor(base: string, lo: string, hi: string): string {
   const light = reachToward(hi, "#ffffff", base);
   return contrastRatio(light, base) >= 1.3 ? light : lo;
 }
+
+/** The heart's colour (see accentFor). */
+export const heartInk = accentFor;
 
 /** One heart, see-through, as a data URI every heart on the tile shares. */
 export function heartDataUri(colour: string): string {
@@ -603,6 +607,13 @@ function build(
     vars["--look-cracks"] = art.cracks;
     vars["--look-glow"] = art.glow;
     extra.push(stone);
+  }
+  if (style.id === "radiance") {
+    // Three quarters of the way to the accent: full white rays on gold were a
+    // shout across the table, and the blend keeps every ray inside the clamp.
+    const ray = withinInk(mixOklab(base, accentFor(base, lo, hi), 0.75), base);
+    vars["--look-ray"] = ray;
+    extra.push(ray);
   }
   const named = HUES.find((h) => h.base === base);
   return {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   HEART_ALPHA,
+  accentFor,
   crackNetwork,
   fissureDataUris,
   glitterInks,
@@ -196,6 +197,28 @@ describe("foil", () => {
 
   it("shines white on gold, where lightening costs the black number nothing", () => {
     expect(resolveLook("gold-foil", "#000").vars["--look-sheen"]).toBe("#ffffff");
+  });
+});
+
+describe("radiance", () => {
+  it("draws its rays three quarters of the way to the seat's accent, and paints them", () => {
+    for (const hue of ["gold", "blue", "magenta"]) {
+      const l = resolveLook(`${hue}-radiance`, "#000");
+      const accent = accentFor(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
+      expect(l.vars["--look-ray"]).toBe(mixOklab(l.base, accent, 0.75));
+      expect(l.paintedColours).toContain(l.vars["--look-ray"]);
+    }
+  });
+
+  it("keeps gold's rays short of full white", () => {
+    const ray = resolveLook("gold-radiance", "#000").vars["--look-ray"];
+    expect(ray).not.toBe("#ffffff");
+    expect(contrastRatio(ray, "#E4B33D")).toBeGreaterThan(1.3);
+  });
+
+  it("draws dark rays where light ones would vanish", () => {
+    const l = resolveLook("green-radiance", "#000");
+    expect(contrastRatio("#ffffff", l.vars["--look-ray"])).toBeGreaterThan(contrastRatio("#ffffff", l.base));
   });
 });
 
