@@ -2147,6 +2147,50 @@ input[type="text"] {
   50% { transform: scale(1.16) translate(-3%, 2%); }
 }
 
+/* Glitter: a static field of hard specks on the tile itself, and two sparse
+   sparkle tiles (97px and 131px, primes, so they never line up) whose opacity
+   alone winks on mismatched periods. Nothing moves and nothing re-rasterises:
+   the eye reads one group brightening while the other fades as flecks
+   catching the light. A static radial mask thins the sparkles behind the life
+   total. */
+.look[data-style="glitter"] {
+  background: var(--look-grain) 0 0 / 180px 180px repeat, var(--look-ground);
+}
+.look[data-style="glitter"] .tile__look span {
+  inset: 0;
+  background-repeat: repeat;
+  -webkit-mask-image: radial-gradient(ellipse 36% 30% at 50% 50%, rgba(0, 0, 0, 0.25) 35%, #000 100%);
+  mask-image: radial-gradient(ellipse 36% 30% at 50% 50%, rgba(0, 0, 0, 0.25) 35%, #000 100%);
+}
+.look[data-style="glitter"] .tile__look span:nth-child(1) {
+  background-image: var(--look-spark-a);
+  background-size: 97px 97px;
+  animation: lkWink calc(1.7s / var(--look-speed, 1)) ease-in-out infinite;
+}
+.look[data-style="glitter"] .tile__look span:nth-child(2) {
+  background-image: var(--look-spark-b);
+  background-size: 131px 131px;
+  background-position: 41px 23px;
+  animation: lkWink calc(2.3s / var(--look-speed, 1)) ease-in-out calc(-1.1s / var(--look-speed, 1)) infinite;
+}
+@keyframes lkWink {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.9; }
+}
+/* Calm: a pause would freeze each group wherever it happened to be, often
+   near-invisible. Both groups rest at the same middling strength instead. */
+.app--still .look[data-style="glitter"] .tile__look span:nth-child(n),
+.tile--out.look[data-style="glitter"] .tile__look span:nth-child(n) {
+  animation: none;
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="glitter"] .tile__look span:nth-child(n) {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
 /* Motion governance: one class on the root freezes every look, and an
    eliminated seat never animates. Pausing rather than unmounting keeps
    resuming instant and avoids recomputing layout.
