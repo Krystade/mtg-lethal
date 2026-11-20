@@ -578,6 +578,41 @@ input {
   justify-content: center;
   align-items: center;
 }
+/* A freeform cell's corner timer: a whole disc centred on the hub (left /
+   top), sized like a grid corner's quarter. The tile's clip shows only the
+   cell's share of it, which is where --from / --sweep put the ring; the
+   face is pushed out along that share's bisector (--bx, --by) to halfway
+   between the menu hexagon (--hole) and the rim. See PlayerTile hubTimer. */
+.tile__pill--wedge {
+  /* The cap leaves out the hole: a cell reaches well past its face, and a
+     thin face (the X's side seats on a phone) would leave no face at all.
+     --rmax (PlayerTile hubFace) stops it short of the life number. */
+  --r: min(
+    calc(var(--min-side) * 0.34 * var(--timer-scale, 1) + var(--hole, 0px)),
+    calc(var(--min-side) * 0.9 + var(--hole, 0px)),
+    var(--rmax, 9999px)
+  );
+  --d: calc((var(--r) + var(--hole, 0px)) / 2);
+  width: calc(var(--r) * 2);
+  height: calc(var(--r) * 2);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+}
+.tile__pill--wedge .tile__pill-inner {
+  width: calc(100% - 2 * max(6px, 0.4em));
+  height: calc(100% - 2 * max(6px, 0.4em));
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+/* --tx / --ty: where PlayerTile measured the face fits on the cell (a hub
+   near the board's edge leaves only part of the bisector on it). */
+.tile__pill--wedge .tile__pill-inner > * {
+  translate: var(--tx, calc(var(--bx) * var(--d))) var(--ty, calc(var(--by) * var(--d)));
+}
 .tile__pill--corner .tile__pill-turn {
   padding: 0;
   background: none;
