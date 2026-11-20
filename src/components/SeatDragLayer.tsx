@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useStore } from "../state/store";
 import { FACING, pxRects, type PxRect, type Side } from "../layout/table";
+import { playerColour } from "../layout/looks";
 import type { Rotation } from "../state/types";
 import { closeFacing, faceSeat, startSeatDrag, touchFacing, undoSeats, useSeatUi, type SeatDrag } from "./seatDrag";
 
@@ -44,7 +45,10 @@ export function SeatDragLayer({ boardRef }: { boardRef: React.RefObject<HTMLDivE
 
   return (
     <div className="seatlayer">
-      {drag && !drag.arming && <DragView drag={drag} nameOf={nameOf} colorOf={(pid) => players.find((p) => p.id === pid)?.color ?? "#fff"} rotOf={rotOf} lifeOf={(pid) => players.find((p) => p.id === pid)?.life ?? 0} />}
+      {drag && !drag.arming && <DragView drag={drag} nameOf={nameOf} colorOf={(pid) => {
+        const p = players.find((q) => q.id === pid);
+        return p ? playerColour(p) : "#fff";
+      }} rotOf={rotOf} lifeOf={(pid) => players.find((p) => p.id === pid)?.life ?? 0} />}
 
       {now && flash && now[flash] && <div className="seatflash" style={rectStyle(now[flash], -3)} />}
 

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
+import { playerColour } from "../layout/looks";
+import { textOn } from "../layout/colors";
 
 export function RandomFirstOverlay({ onClose }: { onClose: () => void }) {
   // Select the stable players array, then filter in-render (a filtered selector
@@ -71,7 +73,10 @@ export function RandomFirstOverlay({ onClose }: { onClose: () => void }) {
                 className={`rand__seat${
                   highlightId === p.id ? " rand__seat--on" : ""
                 }${chosenId === p.id ? " rand__seat--won" : ""}`}
-                style={{ background: p.color }}
+                style={{
+                  background: playerColour(p),
+                  color: textOn(playerColour(p)),
+                }}
               >
                 {p.name}
               </div>

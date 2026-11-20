@@ -1,5 +1,6 @@
 import { useStore } from "../state/store";
 import { textOn } from "../layout/colors";
+import { playerColour } from "../layout/looks";
 import { isPlayerDead } from "../game/lethal";
 
 interface Props {
@@ -48,7 +49,7 @@ export function ArcadeSeatPicker({ open, onToggle, onClose }: Props) {
                 <button
                   key={p.id}
                   className={`seatpick__seat${on ? " is-on" : ""}`}
-                  style={{ background: p.color, color: textOn(p.color) }}
+                  style={{ background: playerColour(p), color: textOn(playerColour(p)) }}
                   onClick={() => onToggle(p.id)}
                   aria-pressed={on}
                   aria-label={`${on ? "stop" : "start"} games in ${p.name}'s seat`}

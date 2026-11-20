@@ -4,7 +4,7 @@ import { clockwiseSeatOrder, sortBySeatOrder } from "../layout/order";
 import { LookPicker } from "./LookPicker";
 import { LookPreview } from "./LookPreview";
 import { RulesLookup } from "./RulesLookup";
-import { resolveLook } from "../layout/looks";
+import { playerColour, resolveLook } from "../layout/looks";
 import { textOn } from "../layout/colors";
 import type { CounterKey } from "../state/types";
 import {
@@ -114,9 +114,9 @@ export function PlayerDetail({
         <div
           className={`panel${rotated ? " panel--rot" : ""}`}
           onClick={(e) => e.stopPropagation()}
-          style={{ borderColor: player.color }}
+          style={{ borderColor: playerColour(player) }}
         >
-        <div className="panel__head" style={{ background: player.color }}>
+        <div className="panel__head" style={{ background: playerColour(player) }}>
           <input
             className="panel__name"
             value={nameDraft}
@@ -133,7 +133,7 @@ export function PlayerDetail({
             }}
             maxLength={16}
             aria-label="player name (tap to edit)"
-            style={{ color: textOn(player.color) }}
+            style={{ color: textOn(playerColour(player)) }}
           />
           <button className="panel__x" onClick={onClose} aria-label="close">
             ✕
@@ -262,7 +262,7 @@ export function PlayerDetail({
                   <CounterRow
                     key={o.id}
                     label={`from ${o.name}`}
-                    swatch={o.color}
+                    swatch={playerColour(o)}
                     value={dmg}
                     warn={dmg >= COMMANDER_DAMAGE_LETHAL}
                     onDec={() => adjustCommanderDamage(playerId, o.id, -1)}

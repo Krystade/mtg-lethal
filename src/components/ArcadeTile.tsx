@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../state/store";
 import { formatClock } from "../util/format";
+import { playerColour } from "../layout/looks";
 import { ARCADE_GAMES, formatBest, gameById } from "../game/arcade/bests";
 import { ManaMatch } from "./arcade/ManaMatch";
 import { ManaChant } from "./arcade/ManaChant";
@@ -101,7 +102,7 @@ export function ArcadeTile({
 
         {active && (
           <span className="arct__turn">
-            <span className="arct__dot" style={{ background: active.color }} />
+            <span className="arct__dot" style={{ background: playerColour(active) }} />
             <span className="arct__who">
               {yourTurn ? "Your turn" : active.name}
             </span>

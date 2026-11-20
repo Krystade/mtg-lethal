@@ -352,3 +352,18 @@ export function resolveLook(
   if (!style) return fallback;
   return build(parsed.colourSpec, style, parsed.mix);
 }
+
+/**
+ * The flat colour a player's tile is painted from.
+ *
+ * `player.color` is only the seat's default and never changes when a player
+ * picks a new colour -- that choice lives in `player.look`. Anything that
+ * stands for a player outside their tile should paint with this, or it shows
+ * the colour they had before they changed it.
+ */
+export function playerColour(player: {
+  look?: string | null;
+  color: string;
+}): string {
+  return resolveLook(player.look, player.color).base;
+}
