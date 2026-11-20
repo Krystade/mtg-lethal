@@ -238,9 +238,15 @@ export function allLookIds(): string[] {
  * catalogue test, which iterates allLookIds() and never sees it.
  */
 function paletteFor(base: string): { lo: string; hi: string } {
+  // `within` clamps against the ink of the colour it is handed, which after
+  // the hue rotation is not always the base's ink: #ff8800 takes black text,
+  // but rotated toward red it would take white, so its shadow was clamped the
+  // wrong way and came out at 2.6:1. withinInk re-checks against the ink the
+  // tile really uses. It leaves any colour that already passes untouched, so
+  // no preset changes.
   return {
-    lo: within(rotateHue(base, -22, 0.05), LO),
-    hi: within(rotateHue(base, 20, 0.08), HI),
+    lo: withinInk(within(rotateHue(base, -22, 0.05), LO), base),
+    hi: withinInk(within(rotateHue(base, 20, 0.08), HI), base),
   };
 }
 
