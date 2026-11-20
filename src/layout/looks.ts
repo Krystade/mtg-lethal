@@ -65,6 +65,7 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "marble", name: "Marble", animated: true, layers: 1 },
   { id: "glitter", name: "Glitter", animated: true, layers: 2 },
   { id: "hearts", name: "Hearts", animated: true, layers: 7, directional: true },
+  { id: "foil", name: "Foil", animated: true, layers: 1 },
 ];
 
 /**
@@ -491,6 +492,13 @@ function build(
     const heart = heartInk(base, lo, hi);
     vars["--look-heart"] = heartDataUri(heart);
     extra.push(heart);
+  }
+  if (style.id === "foil") {
+    // The brightest light the seat can afford, so the sweep reads as a shine
+    // rather than a tint.
+    const sheen = reachToward(hi, "#ffffff", base);
+    vars["--look-sheen"] = sheen;
+    extra.push(sheen);
   }
   const named = HUES.find((h) => h.base === base);
   return {

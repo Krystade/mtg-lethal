@@ -180,3 +180,18 @@ describe("hearts", () => {
     expect(svgOf(l.vars["--look-heart"])).toContain(`fill='${heart}'`);
   });
 });
+
+describe("foil", () => {
+  it("shines in the brightest light the seat can afford, and paints it", () => {
+    for (const hue of ["gold", "blue", "purple"]) {
+      const l = resolveLook(`${hue}-foil`, "#000");
+      const sheen = l.vars["--look-sheen"];
+      expect(sheen).toBe(reachToward(l.vars["--look-hi"], "#ffffff", l.base));
+      expect(l.paintedColours).toContain(sheen);
+    }
+  });
+
+  it("shines white on gold, where lightening costs the black number nothing", () => {
+    expect(resolveLook("gold-foil", "#000").vars["--look-sheen"]).toBe("#ffffff");
+  });
+});

@@ -2267,6 +2267,65 @@ input[type="text"] {
   display: none;
 }
 
+/* Foil: a fine diagonal etch on the tile, and one narrow band of light that
+   sweeps across in the first 15% of its cycle and then waits offscreen. Each
+   seat starts at a different point in the cycle, so no two tiles ever shine
+   together; the board reads as light catching one card at a time. */
+.look[data-style="foil"] {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--look-lo) 12%, transparent) 0 1px,
+      transparent 1px 3px,
+      color-mix(in srgb, var(--look-hi) 12%, transparent) 3px 4px,
+      transparent 4px 6px
+    ),
+    var(--look-base);
+}
+/* Three tiles wide: a 115deg band slants across more than a tall tile's width,
+   and on a tile-sized layer its ends were cut off square by the layer's own
+   edges. */
+.look[data-style="foil"] .tile__look span {
+  top: 0;
+  bottom: 0;
+  left: -100%;
+  width: 300%;
+  background: linear-gradient(
+    115deg,
+    transparent 44%,
+    color-mix(in srgb, var(--look-sheen) 55%, transparent) 50%,
+    transparent 56%
+  );
+  transform: translateX(-45%);
+  animation: lkFoil calc(9s / var(--look-speed, 1)) ease-in-out infinite;
+}
+/* Tiles are siblings on the board, so their order spaces the shines 1.5s
+   apart: each shine takes 1.35s, so six seats never overlap. */
+.look[data-style="foil"]:nth-child(6n + 2) .tile__look span { animation-delay: calc(-1.5s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 3) .tile__look span { animation-delay: calc(-3s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 4) .tile__look span { animation-delay: calc(-4.5s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 5) .tile__look span { animation-delay: calc(-6s / var(--look-speed, 1)); }
+.look[data-style="foil"]:nth-child(6n + 6) .tile__look span { animation-delay: calc(-7.5s / var(--look-speed, 1)); }
+@keyframes lkFoil {
+  0% { transform: translateX(-45%); }
+  15%, 100% { transform: translateX(45%); }
+}
+/* Calm: the band parked faintly across a corner, not frozen mid-tile or
+   gone altogether. */
+.app--still .look[data-style="foil"] .tile__look span:nth-child(n),
+.tile--out.look[data-style="foil"] .tile__look span:nth-child(n) {
+  animation: none;
+  transform: translateX(-28%);
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="foil"] .tile__look span:nth-child(n) {
+    animation: none;
+    transform: translateX(-28%);
+    opacity: 0.5;
+  }
+}
+
 /* Motion governance: one class on the root freezes every look, and an
    eliminated seat never animates. Pausing rather than unmounting keeps
    resuming instant and avoids recomputing layout.
