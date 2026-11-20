@@ -66,6 +66,7 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "glitter", name: "Glitter", animated: true, layers: 2 },
   { id: "hearts", name: "Hearts", animated: true, layers: 7, directional: true },
   { id: "foil", name: "Foil", animated: true, layers: 1 },
+  { id: "fissure", name: "Fissure", animated: true, layers: 2 },
 ];
 
 /**
@@ -243,13 +244,19 @@ export function glitterInks(
  * is painted in exactly the colour the contrast test checked, not a lighter
  * linear-light reading of it. stitchTiles makes the tile repeat seamlessly.
  */
-export function grainDataUri(colour: string, cut: number, seed: number, size = 180): string {
+export function grainDataUri(
+  colour: string,
+  cut: number,
+  seed: number,
+  size = 180,
+  /** Lower frequency and a gentle ramp turn specks into soft mottling. */
+  { frequency = 0.9, octaves = 1, k = 30 } = {},
+): string {
   const [r, g, b] = channels(colour);
-  const k = 30;
   const svg =
     `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>` +
     `<filter id='g' x='0' y='0' width='100%' height='100%' color-interpolation-filters='sRGB'>` +
-    `<feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' seed='${seed}' stitchTiles='stitch'/>` +
+    `<feTurbulence type='fractalNoise' baseFrequency='${frequency}' numOctaves='${octaves}' seed='${seed}' stitchTiles='stitch'/>` +
     `<feColorMatrix type='matrix' values='0 0 0 0 ${r} 0 0 0 0 ${g} 0 0 0 0 ${b} ${k} 0 0 0 ${(-k * cut).toFixed(2)}'/>` +
     `</filter><rect width='${size}' height='${size}' filter='url(#g)'/></svg>`;
   return svgUrl(svg);
@@ -321,6 +328,93 @@ export function heartDataUri(colour: string): string {
       `<path d='M16 28.5C6 21 0 15.5 0 8.6 0 3.8 3.7 0 8.4 0c3.1 0 5.9 1.7 7.6 4.3C17.7 1.7 20.5 0 23.6 0 28.3 0 32 3.8 32 8.6 32 15.5 26 21 16 28.5Z' ` +
       `fill='${colour}' fill-opacity='${HEART_ALPHA}'/></svg>`,
   );
+}
+
+/** Fissure's network lives in a square of this many units, cropped to the tile. */
+const CRACK_BOX = 400;
+
+/**
+ * A crack network: a few long fractures wandering in from the edges, each
+ * shedding short branches. A random walk with a jittered heading that keeps
+ * pulling back toward its course, so it zigzags like a fracture rather than
+ * curling like a vein; seeded so every device draws the same stone.
+ *
+ * Returned as width tiers -- each tier one path stroked at one relative width
+ * -- because a fracture is widest where it entered and thins toward its tip.
+ * A uniform stroke read as neon wire, not cracked stone.
+ */
+export function crackNetwork(seed: number): { d: string; w: number }[] {
+  const rand = seeded(seed);
+  const f = (n: number) => n.toFixed(1);
+  const TIERS = [1, 0.66, 0.4, 0.24];
+  const tiers = TIERS.map(() => "");
+  const walk = (x0: number, y0: number, heading: number, steps: number, len: number, from: number) => {
+    let x = x0;
+    let y = y0;
+    let a = heading;
+    for (let i = 0; i < steps; i++) {
+      a += (rand() - 0.5) * 1.15 + (heading - a) * 0.3;
+      const l = len * (0.5 + rand());
+      const nx = x + Math.cos(a) * l;
+      const ny = y + Math.sin(a) * l;
+      // Thins along its length: the first stretch at its own tier, the rest
+      // one or two tiers finer.
+      const tier = Math.min(TIERS.length - 1, from + Math.floor((i / steps) * 2.4));
+      tiers[tier] += `M${f(x)} ${f(y)}L${f(nx)} ${f(ny)}`;
+      x = nx;
+      y = ny;
+      if (from === 0 && i > 1 && rand() < 0.32) {
+        const turn = (rand() < 0.5 ? -1 : 1) * (0.55 + rand() * 0.6);
+        walk(x, y, a + turn, 3 + Math.floor(rand() * 4), len * 0.6, Math.min(TIERS.length - 1, tier + 1));
+      }
+    }
+  };
+  // Entry points round the edge, each aimed roughly across the stone.
+  const B = CRACK_BOX;
+  const entries: [number, number, number][] = [
+    [0, B * 0.28, 0.25],
+    [B, B * 0.12, Math.PI - 0.5],
+    [B * 0.34, B, -Math.PI / 2 + 0.35],
+    [B, B * 0.78, Math.PI + 0.3],
+    [B * 0.12, 0, Math.PI / 2 - 0.2],
+  ];
+  for (const [x, y, h] of entries) walk(x, y, h, 15 + Math.floor(rand() * 6), 18, 0);
+  return TIERS.map((w, i) => ({ d: tiers[i], w })).filter((t) => t.d !== "");
+}
+
+const CRACKS = crackNetwork(5);
+
+/**
+ * Fissure's two images. The cracks: a rim in the shadow colour with a thin
+ * core of the glow colour, crisp. The glow: the same paths stroked wide in
+ * the glow colour and blurred inside the SVG, so the blur is rasterised once
+ * with the image -- never a live CSS filter -- and only its opacity moves.
+ */
+export function fissureDataUris(rim: string, glow: string): { cracks: string; glow: string } {
+  const B = CRACK_BOX;
+  const head = `<svg xmlns='http://www.w3.org/2000/svg' width='${B}' height='${B}' viewBox='0 0 ${B} ${B}'>`;
+  const g = `fill='none' stroke-linecap='round' stroke-linejoin='round'`;
+  const stroke = (colour: string, width: number) =>
+    CRACKS.map((t) => `<path d='${t.d}' stroke='${colour}' stroke-width='${(t.w * width).toFixed(2)}'/>`).join("");
+  const cracks = head + `<g ${g}>` + stroke(rim, 5) + stroke(glow, 1.7) + `</g></svg>`;
+  const halo =
+    head +
+    `<filter id='b' x='-10%' y='-10%' width='120%' height='120%'><feGaussianBlur stdDeviation='5'/></filter>` +
+    `<g ${g} filter='url(#b)'>` +
+    stroke(glow, 9) +
+    `</g></svg>`;
+  return { cracks: svgUrl(cracks), glow: svgUrl(halo) };
+}
+
+/**
+ * The stone: the base pulled toward a deep, desaturated version of itself as
+ * far as the life total allows. Under white ink that is all the way, so the
+ * stone is dark and the glow reads as light through cracks; under black ink
+ * (gold) it stops where the black number would start to sink, which keeps the
+ * same ink the base implies -- nothing has to guess a second text colour.
+ */
+export function stoneFor(base: string): string {
+  return reachToward(base, mixOklab(base, "#121212", 0.62), base);
 }
 
 /**
@@ -499,6 +593,16 @@ function build(
     const sheen = reachToward(hi, "#ffffff", base);
     vars["--look-sheen"] = sheen;
     extra.push(sheen);
+  }
+  if (style.id === "fissure") {
+    const stone = stoneFor(base);
+    const art = fissureDataUris(lo, hi);
+    vars["--look-stone"] = stone;
+    // Soft mottling in the shadow colour, so the stone is not a flat fill.
+    vars["--look-mottle"] = grainDataUri(lo, 0.5, 13, 260, { frequency: 0.03, octaves: 4, k: 1.3 });
+    vars["--look-cracks"] = art.cracks;
+    vars["--look-glow"] = art.glow;
+    extra.push(stone);
   }
   const named = HUES.find((h) => h.base === base);
   return {

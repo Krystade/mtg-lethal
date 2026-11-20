@@ -2326,6 +2326,56 @@ input[type="text"] {
   }
 }
 
+/* Fissure: dark cracked stone with light glowing through the cracks - lava on
+   red, ice on blue, rot on green, because the glow is the seat's own
+   highlight. One crack network, stretched once over the tile (cropped, never
+   tiled, so no seams). The glow is blurred inside its SVG and rasterised
+   once; only its opacity breathes. */
+.look[data-style="fissure"] {
+  background: var(--look-mottle) 0 0 / 260px 260px repeat, var(--look-stone);
+}
+.look[data-style="fissure"] .tile__look span {
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+/* One network, mirrored differently per seat, so neighbouring tiles do not
+   wear the same crack like a sticker. Static, so it costs nothing. */
+.look[data-style="fissure"]:nth-child(4n + 2) .tile__look { scale: -1 1; }
+.look[data-style="fissure"]:nth-child(4n + 3) .tile__look { scale: 1 -1; }
+.look[data-style="fissure"]:nth-child(4n + 4) .tile__look { scale: -1 -1; }
+.look[data-style="fissure"] .tile__look span:nth-child(1) {
+  background-image: var(--look-cracks);
+}
+.look[data-style="fissure"] .tile__look span:nth-child(2) {
+  background-image: var(--look-glow);
+  animation: lkFissure calc(7s / var(--look-speed, 1)) ease-in-out infinite;
+}
+/* Neighbouring seats breathe out of step, so the board does not pulse as one. */
+.look[data-style="fissure"]:nth-child(2n) .tile__look span:nth-child(2) { animation-delay: calc(-2.3s / var(--look-speed, 1)); }
+.look[data-style="fissure"]:nth-child(3n) .tile__look span:nth-child(2) { animation-delay: calc(-4.6s / var(--look-speed, 1)); }
+@keyframes lkFissure {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.85; }
+}
+.app--still .look[data-style="fissure"] .tile__look span:nth-child(n),
+.tile--out.look[data-style="fissure"] .tile__look span:nth-child(2) {
+  animation: none;
+}
+.app--still .look[data-style="fissure"] .tile__look span:nth-child(2),
+.tile--out.look[data-style="fissure"] .tile__look span:nth-child(2) {
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="fissure"] .tile__look span:nth-child(n) {
+    animation: none;
+  }
+  .look[data-style="fissure"] .tile__look span:nth-child(2) {
+    opacity: 0.55;
+  }
+}
+
 /* Motion governance: one class on the root freezes every look, and an
    eliminated seat never animates. Pausing rather than unmounting keeps
    resuming instant and avoids recomputing layout.

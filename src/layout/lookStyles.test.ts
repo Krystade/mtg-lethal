@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   HEART_ALPHA,
+  crackNetwork,
+  fissureDataUris,
   glitterInks,
   grainDataUri,
   heartDataUri,
@@ -8,6 +10,7 @@ import {
   reachToward,
   resolveLook,
   sparkleDataUri,
+  stoneFor,
 } from "./looks";
 import { contrastRatio, mixOklab, textOn } from "./colors";
 
@@ -193,5 +196,60 @@ describe("foil", () => {
 
   it("shines white on gold, where lightening costs the black number nothing", () => {
     expect(resolveLook("gold-foil", "#000").vars["--look-sheen"]).toBe("#ffffff");
+  });
+});
+
+describe("fissure", () => {
+  it.each(["blue", "red", "green", "magenta", "purple"])(
+    "lays %s over dark stone, which only gains the white number contrast",
+    (hue) => {
+      const l = resolveLook(`${hue}-fissure`, "#000");
+      const stone = l.vars["--look-stone"];
+      expect(stone).toBe(stoneFor(l.base));
+      expect(contrastRatio("#ffffff", stone)).toBeGreaterThan(contrastRatio("#ffffff", l.base) * 1.6);
+      expect(l.paintedColours).toContain(stone);
+    },
+  );
+
+  it("darkens gold only as far as its black number still reads", () => {
+    const l = resolveLook("gold-fissure", "#000");
+    const stone = l.vars["--look-stone"];
+    const ink = textOn(l.base);
+    expect(ink).toBe("#0d0d0d");
+    // As dark as it can go, and no darker: right at the bar, not short of it.
+    expect(contrastRatio(ink, stone)).toBeGreaterThanOrEqual(3.05);
+    expect(contrastRatio(ink, stone)).toBeLessThan(3.4);
+  });
+
+  it("bakes the glow's blur into its own SVG and leaves the cracks crisp", () => {
+    const l = resolveLook("blue-fissure", "#000");
+    const glow = svgOf(l.vars["--look-glow"]);
+    const cracks = svgOf(l.vars["--look-cracks"]);
+    expect(glow).toContain("<feGaussianBlur");
+    expect(glow).toContain(`stroke='${l.vars["--look-hi"]}'`);
+    expect(cracks).not.toContain("<filter");
+    // A shadow rim with a core of the glow colour.
+    expect(cracks).toContain(`stroke='${l.vars["--look-lo"]}'`);
+    expect(cracks).toContain(`stroke='${l.vars["--look-hi"]}'`);
+  });
+
+  it("draws the same network on every call, thinning from trunk to tip", () => {
+    const a = crackNetwork(5);
+    expect(crackNetwork(5)).toEqual(a);
+    expect(crackNetwork(6)).not.toEqual(a);
+    expect(a.length).toBeGreaterThan(2);
+    for (let i = 1; i < a.length; i++) expect(a[i].w).toBeLessThan(a[i - 1].w);
+    expect(a[0].w).toBe(1);
+  });
+
+  it("strokes the glow wider than the crack it comes through", () => {
+    const { cracks, glow } = fissureDataUris("#111111", "#eeeeee");
+    const widest = (svg: string, colour: string) =>
+      Math.max(
+        ...[...svgOf(svg).matchAll(new RegExp(`stroke='${colour}' stroke-width='([\\d.]+)'`, "g"))].map((m) => Number(m[1])),
+      );
+    const glowW = Math.max(...[...svgOf(glow).matchAll(/stroke-width='([\d.]+)'/g)].map((m) => Number(m[1])));
+    expect(glowW).toBeGreaterThan(widest(cracks, "#111111"));
+    expect(widest(cracks, "#111111")).toBeGreaterThan(widest(cracks, "#eeeeee"));
   });
 });
