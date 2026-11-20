@@ -59,7 +59,8 @@ describe("resolveLook — parsing", () => {
 });
 
 describe("resolveLook — fallback", () => {
-  it.each([undefined, "", "chartreuse", "blue-tartan", "-", "gold-"])(
+  // (Tartan used to stand in here as a style that did not exist. It does now.)
+  it.each([undefined, "", "chartreuse", "blue-plaid", "-", "gold-"])(
     "falls back to the player's colour for %s",
     (id) => {
       const l = resolveLook(id as string | undefined, "#123456");

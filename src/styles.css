@@ -1972,6 +1972,15 @@ input[type="text"] {
   );
 }
 
+/* Tartan: woven plaid in the seat's colours. One repeat is baked as an SVG
+   tile in looks.ts, because the crossings are the whole point: where two
+   threads of different colours cross they need a colour of their own, an
+   opaque OKLab blend, and two overlaid gradients can only paint one band on
+   top of the other. */
+.look[data-style="tartan"] {
+  background: var(--look-tartan) 0 0 / var(--look-sett) var(--look-sett) repeat, var(--look-base);
+}
+
 /* --- animated ---
    Every style moves by translation, scale or noise. Nothing rotates: a
    rotating element has a fixed pivot the eye locks onto, which reads

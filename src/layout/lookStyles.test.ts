@@ -12,8 +12,11 @@ import {
   heartInk,
   reachToward,
   resolveLook,
+  TARTAN_SETT,
   sparkleDataUri,
   stoneFor,
+  tartanCrossing,
+  tartanDataUri,
 } from "./looks";
 import { contrastRatio, mixOklab, textOn } from "./colors";
 
@@ -221,6 +224,43 @@ describe("radiance", () => {
   it("draws dark rays where light ones would vanish", () => {
     const l = resolveLook("green-radiance", "#000");
     expect(contrastRatio("#ffffff", l.vars["--look-ray"])).toBeGreaterThan(contrastRatio("#ffffff", l.base));
+  });
+});
+
+describe("tartan", () => {
+  it("weaves a crossing of two colours as their opaque OKLab midpoint", () => {
+    const l = resolveLook("blue-tartan", "#000");
+    const lo = l.vars["--look-lo"];
+    const hi = l.vars["--look-hi"];
+    const c = tartanCrossing(lo, hi, l.base);
+    expect(c).toBe(mixOklab(lo, hi, 0.5));
+    expect(c).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it("leaves a thread crossing its own colour pure", () => {
+    expect(tartanCrossing("#123456", "#123456", "#123456")).toBe("#123456");
+  });
+
+  it("paints every cell of one repeat, and every colour it uses is in paintedColours", () => {
+    const l = resolveLook("red-tartan", "#000");
+    const plaid = tartanDataUri(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
+    const svg = svgOf(plaid.uri);
+    expect(svg.match(/<rect /g)).toHaveLength(TARTAN_SETT.length ** 2);
+    expect(plaid.size).toBe(TARTAN_SETT.reduce((n, [, w]) => n + w, 0));
+    expect(l.vars["--look-sett"]).toBe(`${plaid.size}px`);
+    // No alpha anywhere: a translucent crossing is what goes to mud.
+    expect(svg).not.toMatch(/opacity/);
+    for (const fill of svg.match(/fill='(#[0-9a-f]{6})'/g) ?? []) {
+      expect(l.paintedColours).toContain(fill.slice(6, 13));
+    }
+    // Base, shadow, highlight, and the three crossings between them.
+    expect(new Set(plaid.colours).size).toBe(6);
+  });
+
+  it("is static: a cloth needs no layers", () => {
+    const l = resolveLook("red-tartan", "#000");
+    expect(l.animated).toBe(false);
+    expect(l.layers).toBe(0);
   });
 });
 

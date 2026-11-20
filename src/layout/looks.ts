@@ -71,6 +71,7 @@ export const LOOK_STYLES: LookStyle[] = [
   // Directional: a tear runs along the owner's lines of text, like a bad
   // scanline. Unturned, on a side seat it tore across the number instead.
   { id: "glitch", name: "Glitch", animated: true, layers: 3, directional: true },
+  { id: "tartan", name: "Tartan", animated: false, layers: 0 },
 ];
 
 /**
@@ -424,6 +425,59 @@ export function stoneFor(base: string): string {
   return reachToward(base, mixOklab(base, "#121212", 0.62), base);
 }
 
+type Thread = "base" | "lo" | "hi";
+
+/** Tartan's sett: the run of thread colours and widths (px) that repeats. */
+export const TARTAN_SETT: [Thread, number][] = [
+  ["lo", 14],
+  ["base", 4],
+  ["lo", 3],
+  ["base", 20],
+  ["hi", 3],
+  ["base", 20],
+];
+
+/**
+ * Where two threads of different colours cross, a woven cloth shows them
+ * half and half. That is drawn here as one OPAQUE colour, the OKLab midpoint:
+ * two translucent bands laid over each other would average through sRGB and
+ * go to mud, and would show the top band's colour more than the bottom's.
+ * Each blend is clamped like every other colour a look paints.
+ */
+export function tartanCrossing(a: string, b: string, base: string): string {
+  return a === b ? a : withinInk(mixOklab(a, b, 0.5), base);
+}
+
+/**
+ * One repeat of the plaid as an SVG tile: the warp runs the sett across, the
+ * weft runs it down, and every cell of the grid is the crossing of the two.
+ * Integer edges keep every band crisp.
+ */
+export function tartanDataUri(base: string, lo: string, hi: string): { uri: string; size: number; colours: string[] } {
+  const thread: Record<Thread, string> = { base, lo, hi };
+  const size = TARTAN_SETT.reduce((n, [, w]) => n + w, 0);
+  const used = new Set<string>();
+  let body = "";
+  let y = 0;
+  for (const [weft, h] of TARTAN_SETT) {
+    let x = 0;
+    for (const [warp, w] of TARTAN_SETT) {
+      const c = tartanCrossing(thread[warp], thread[weft], base);
+      used.add(c);
+      body += `<rect x='${x}' y='${y}' width='${w}' height='${h}' fill='${c}'/>`;
+      x += w;
+    }
+    y += h;
+  }
+  return {
+    uri: svgUrl(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' shape-rendering='crispEdges'>${body}</svg>`,
+    ),
+    size,
+    colours: [...used],
+  };
+}
+
 /**
  * A look id is `<colours>` or `<colours>-<style>`, where colours is one or two
  * tokens joined by `~`, each either a named hue or a #rrggbb literal.
@@ -617,6 +671,12 @@ function build(
     const ray = withinInk(mixOklab(base, accentFor(base, lo, hi), 0.75), base);
     vars["--look-ray"] = ray;
     extra.push(ray);
+  }
+  if (style.id === "tartan") {
+    const plaid = tartanDataUri(base, lo, hi);
+    vars["--look-tartan"] = plaid.uri;
+    vars["--look-sett"] = `${plaid.size}px`;
+    extra.push(...plaid.colours);
   }
   const named = HUES.find((h) => h.base === base);
   return {
