@@ -2191,6 +2191,82 @@ input[type="text"] {
   }
 }
 
+/* A directional look's frame: the tile turned to face its owner (sized and
+   rotated inline, see LookLayers). A size container, so the layers inside
+   travel in units of the frame however the seat is turned. */
+.tile__look .tile__look-dir {
+  left: 50%;
+  top: 50%;
+  container-type: size;
+  overflow: hidden;
+}
+
+/* Hearts: see-through hearts float up away from their owner and fade out.
+   Each is a small layer moved by transform (rise and grow) and opacity
+   (fade), with a gentle sideways sway on the separate `translate` property so
+   the two never fight over one value. Their see-through alpha is baked into
+   the shared heart image, which leaves opacity free for the fade. Varied
+   sizes, lanes and periods, and negative delays so the tile starts full. A
+   static mask in the owner's frame thins them as they pass the life total. */
+.look[data-style="hearts"] .tile__look-dir {
+  -webkit-mask-image: radial-gradient(ellipse 30% 24% at 50% 50%, rgba(0, 0, 0, 0.2) 30%, #000 100%);
+  mask-image: radial-gradient(ellipse 30% 24% at 50% 50%, rgba(0, 0, 0, 0.2) 30%, #000 100%);
+}
+.look[data-style="hearts"] .tile__look-dir > span {
+  top: 100%;
+  left: var(--x);
+  width: var(--s);
+  aspect-ratio: 32 / 29;
+  margin-left: calc(var(--s) / -2);
+  background: var(--look-heart) center / contain no-repeat;
+  opacity: 0;
+  animation:
+    lkHeartRise calc(var(--d) / var(--look-speed, 1)) linear calc(var(--d) * var(--at) / var(--look-speed, 1)) infinite,
+    lkHeartSway calc(var(--sw) / var(--look-speed, 1)) ease-in-out calc(var(--sw) * var(--at) / var(--look-speed, 1)) infinite alternate;
+}
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(1) { --x: 9%;  --s: 17cqmin; --d: 9s;  --sw: 3.1s; --at: -0.02; --rest: 58cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(2) { --x: 24%; --s: 12cqmin; --d: 12s; --sw: 2.6s; --at: -0.55; --rest: 24cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(3) { --x: 38%; --s: 21cqmin; --d: 10s; --sw: 3.4s; --at: -0.3;  --rest: 22cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(4) { --x: 53%; --s: 14cqmin; --d: 13s; --sw: 2.9s; --at: -0.82; --rest: 88cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(5) { --x: 67%; --s: 18cqmin; --d: 8s;  --sw: 3.2s; --at: -0.15; --rest: 30cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(6) { --x: 81%; --s: 13cqmin; --d: 11s; --sw: 2.7s; --at: -0.66; --rest: 70cqh; }
+.look[data-style="hearts"] .tile__look-dir > span:nth-child(7) { --x: 92%; --s: 16cqmin; --d: 7s;  --sw: 3s;   --at: -0.43; --rest: 40cqh; }
+@keyframes lkHeartRise {
+  0% { transform: translateY(0) scale(0.8); opacity: 0; }
+  12% { opacity: 1; }
+  45% { opacity: 0.9; }
+  78% { opacity: 0; }
+  100% { transform: translateY(-130cqh) scale(1.1); opacity: 0; }
+}
+@keyframes lkHeartSway {
+  from { translate: -2.5cqw 0; }
+  to { translate: 2.5cqw 0; }
+}
+/* Calm: an explicit pose of five resting hearts, low on the owner's side and
+   out at the edges, rather than seven frozen wherever they happened to be. */
+.app--still .look[data-style="hearts"] .tile__look-dir > span:nth-child(n) {
+  animation: none;
+  opacity: 0.875;
+  transform: translateY(calc(-1 * var(--rest))) scale(1);
+}
+.app--still .look[data-style="hearts"] .tile__look-dir > span:nth-child(n + 6) {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .look[data-style="hearts"] .tile__look-dir > span:nth-child(n) {
+    animation: none;
+    opacity: 0.875;
+    transform: translateY(calc(-1 * var(--rest))) scale(1);
+  }
+  .look[data-style="hearts"] .tile__look-dir > span:nth-child(n + 6) {
+    display: none;
+  }
+}
+/* A knocked-out seat has nothing to love. */
+.tile--out.look[data-style="hearts"] .tile__look {
+  display: none;
+}
+
 /* Motion governance: one class on the root freezes every look, and an
    eliminated seat never animates. Pausing rather than unmounting keeps
    resuming instant and avoids recomputing layout.

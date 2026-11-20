@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  HEART_ALPHA,
   glitterInks,
   grainDataUri,
+  heartDataUri,
+  heartInk,
   reachToward,
   resolveLook,
   sparkleDataUri,
@@ -136,5 +139,44 @@ describe("glitter", () => {
     const l = resolveLook("blue-glitter", "#000");
     const { glint } = glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
     expect(contrastRatio(textOn(l.base), glint)).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("hearts", () => {
+  it("is the one directional style so far, and draws seven hearts", () => {
+    const l = resolveLook("red-hearts", "#000");
+    expect(l.directional).toBe(true);
+    expect(l.layers).toBe(7);
+    expect(resolveLook("red-glitter", "#000").directional).toBe(false);
+  });
+
+  it("bakes the see-through alpha into the heart, leaving opacity free to fade", () => {
+    const svg = svgOf(heartDataUri("#abcdef"));
+    expect(svg).toContain("fill='#abcdef'");
+    expect(svg).toContain(`fill-opacity='${HEART_ALPHA}'`);
+    expect(HEART_ALPHA).toBeGreaterThan(0.3);
+    expect(HEART_ALPHA).toBeLessThan(0.5);
+  });
+
+  it("paints light hearts where the seat can afford them", () => {
+    for (const hue of ["gold", "magenta", "red", "purple"]) {
+      const l = resolveLook(`${hue}-hearts`, "#000");
+      const heart = heartInk(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
+      expect(heart).not.toBe(l.vars["--look-lo"]);
+      expect(l.paintedColours).toContain(heart);
+    }
+  });
+
+  it("falls back to deep hearts where a light one would vanish", () => {
+    for (const hue of ["blue", "green"]) {
+      const l = resolveLook(`${hue}-hearts`, "#000");
+      expect(heartInk(l.base, l.vars["--look-lo"], l.vars["--look-hi"])).toBe(l.vars["--look-lo"]);
+    }
+  });
+
+  it("puts the heart colour in the shared heart image", () => {
+    const l = resolveLook("gold-hearts", "#000");
+    const heart = heartInk(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
+    expect(svgOf(l.vars["--look-heart"])).toContain(`fill='${heart}'`);
   });
 });

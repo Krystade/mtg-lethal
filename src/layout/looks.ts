@@ -64,6 +64,7 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "smoke", name: "Smoke", animated: true, layers: 1 },
   { id: "marble", name: "Marble", animated: true, layers: 1 },
   { id: "glitter", name: "Glitter", animated: true, layers: 2 },
+  { id: "hearts", name: "Hearts", animated: true, layers: 7, directional: true },
 ];
 
 /**
@@ -298,6 +299,29 @@ export function sparkleDataUri(
   );
 }
 
+/** How see-through a heart is. Baked into the fill so opacity stays free to fade it. */
+export const HEART_ALPHA = 0.4;
+
+/**
+ * The heart's colour: a light one where the seat can afford a light colour
+ * that reads against its base, the shadow where it cannot. Blue and green sit
+ * so close to the lightest the white number allows that a light heart would
+ * be invisible on them; a deep translucent one still reads.
+ */
+export function heartInk(base: string, lo: string, hi: string): string {
+  const light = reachToward(hi, "#ffffff", base);
+  return contrastRatio(light, base) >= 1.3 ? light : lo;
+}
+
+/** One heart, see-through, as a data URI every heart on the tile shares. */
+export function heartDataUri(colour: string): string {
+  return svgUrl(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='29' viewBox='0 0 32 29'>` +
+      `<path d='M16 28.5C6 21 0 15.5 0 8.6 0 3.8 3.7 0 8.4 0c3.1 0 5.9 1.7 7.6 4.3C17.7 1.7 20.5 0 23.6 0 28.3 0 32 3.8 32 8.6 32 15.5 26 21 16 28.5Z' ` +
+      `fill='${colour}' fill-opacity='${HEART_ALPHA}'/></svg>`,
+  );
+}
+
 /**
  * A look id is `<colours>` or `<colours>-<style>`, where colours is one or two
  * tokens joined by `~`, each either a named hue or a #rrggbb literal.
@@ -462,6 +486,11 @@ function build(
     vars["--look-spark-a"] = sparkleDataUri(97, 3, 11, 3, speck, glint);
     vars["--look-spark-b"] = sparkleDataUri(131, 8, 17, 3, speck, glint);
     extra.push(ground, speck, glint);
+  }
+  if (style.id === "hearts") {
+    const heart = heartInk(base, lo, hi);
+    vars["--look-heart"] = heartDataUri(heart);
+    extra.push(heart);
   }
   const named = HUES.find((h) => h.base === base);
   return {

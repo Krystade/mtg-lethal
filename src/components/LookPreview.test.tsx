@@ -17,9 +17,10 @@ describe("LookPreview", () => {
     for (const style of LOOK_STYLES) {
       const l = look(lookId("blue", style.id));
       const { container } = render(<LookPreview look={l} className="x" />);
-      expect(container.querySelectorAll(".tile__look span")).toHaveLength(
-        l.layers,
-      );
+      // A directional style's rotated frame is a span too, but not a layer.
+      expect(
+        container.querySelectorAll(".tile__look span:not(.tile__look-dir)"),
+      ).toHaveLength(l.layers);
     }
   });
 
