@@ -112,13 +112,16 @@ input {
   display: block;
 }
 
-/* Discrete +/- hit areas near each edge; the middle (the number) is inert. */
+/* Discrete +/- hit areas near each edge; the middle (the number) is inert.
+   80% tall: the glyph and the ring round it are ±1 (PlayerTile tenLine), so
+   the ±10 band above needs the height. The counter row, ⋯, the seat handle
+   and the chips are all drawn over it and keep their own taps. */
 .tile__adj {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   width: 32%;
-  height: 56%;
+  height: 80%;
   border: none;
   background: transparent;
   display: flex;
@@ -147,19 +150,21 @@ input {
   pointer-events: none;
 }
 
-/* The zone's upper half (as the seat reads it) is ±10, the lower ±1 (see
-   PlayerTile lifeStep, which puts the line 0.3em above the glyph's centre).
-   A quiet "10" just above that line says so. */
+/* Above the glyph (as the seat reads it) is ±10, the glyph and a ring round
+   it ±1 (PlayerTile tenLine). A "10" just past that line, in the ±10 band,
+   says so: big enough to read across the table (0.45 of the glyph, as
+   bold). --ten-at (px, from PlayerTile tenLabelAt) is where its foot sits
+   above the glyph's centre; the fallback is 0.92 glyph em (2.04 of its own). */
 .tile__sign::before {
   content: "10";
   position: absolute;
   left: 50%;
-  bottom: calc(50% + 1.5em);
+  bottom: calc(50% + var(--ten-at, 2.04em));
   translate: -50% 0;
-  font-size: 0.3em;
+  font-size: 0.45em;
   line-height: 1;
   letter-spacing: 0.02em;
-  opacity: 0.75;
+  opacity: 0.9;
 }
 
 /* A big corner disc can slide a glyph up against the number; the zone stops
@@ -572,6 +577,41 @@ input {
   width: calc(100% - 2 * max(6px, 0.4em));
   justify-content: center;
   align-items: center;
+}
+/* A freeform cell's corner timer: a whole disc centred on the hub (left /
+   top), sized like a grid corner's quarter. The tile's clip shows only the
+   cell's share of it, which is where --from / --sweep put the ring; the
+   face is pushed out along that share's bisector (--bx, --by) to halfway
+   between the menu hexagon (--hole) and the rim. See PlayerTile hubTimer. */
+.tile__pill--wedge {
+  /* The cap leaves out the hole: a cell reaches well past its face, and a
+     thin face (the X's side seats on a phone) would leave no face at all.
+     --rmax (PlayerTile hubFace) stops it short of the life number. */
+  --r: min(
+    calc(var(--min-side) * 0.34 * var(--timer-scale, 1) + var(--hole, 0px)),
+    calc(var(--min-side) * 0.9 + var(--hole, 0px)),
+    var(--rmax, 9999px)
+  );
+  --d: calc((var(--r) + var(--hole, 0px)) / 2);
+  width: calc(var(--r) * 2);
+  height: calc(var(--r) * 2);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+}
+.tile__pill--wedge .tile__pill-inner {
+  width: calc(100% - 2 * max(6px, 0.4em));
+  height: calc(100% - 2 * max(6px, 0.4em));
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+/* --tx / --ty: where PlayerTile measured the face fits on the cell (a hub
+   near the board's edge leaves only part of the bisector on it). */
+.tile__pill--wedge .tile__pill-inner > * {
+  translate: var(--tx, calc(var(--bx) * var(--d))) var(--ty, calc(var(--by) * var(--d)));
 }
 .tile__pill--corner .tile__pill-turn {
   padding: 0;

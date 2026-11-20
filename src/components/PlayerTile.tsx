@@ -19,7 +19,7 @@ import { CounterSteppers } from "./CounterSteppers";
 import { Digits } from "./Digits";
 import { ArcadeTile } from "./ArcadeTile";
 import { HUB_REACH, junctionFor, type TileJunction } from "../layout/junction";
-import { boxOf, clearSpot, faceFrame, type Box } from "../layout/polyPlace";
+import { boxOf, clampInPoly, clearSpot, discFaceSpot, faceFrame, hubDisc, type Box } from "../layout/polyPlace";
 import { seatHandleSpot, type SeatHandleSpot } from "../game/stickers";
 import { startSeatDrag, useSeatUi } from "./seatDrag";
 import { screenToLocal, usePillGesture } from "./usePillGesture";
@@ -162,6 +162,69 @@ function cornerTimer(j: TileJunction, rot: Rotation) {
   };
 }
 
+/**
+ * "corner" mode on a freeform cell: a whole disc centred on the hub, which
+ * the tile's clip cuts down to the cell's own share of it -- whatever angle
+ * the cell's corner there makes (a triangle's apex, the X's quarters, a
+ * half where the hub is mid-edge). The ring drains across that share and
+ * the face sits on its bisector, out past the menu hexagon (see hubDisc).
+ */
+function hubTimer(d: NonNullable<ReturnType<typeof hubDisc>>, face: { x: number; y: number; rmax: number } | null) {
+  return {
+    kind: "wedge" as const,
+    style: {
+      left: `${d.x}px`,
+      top: `${d.y}px`,
+      ...(face ? { "--tx": `${face.x}px`, "--ty": `${face.y}px`, "--rmax": `${face.rmax}px` } : {}),
+      "--cx": "50%",
+      "--cy": "50%",
+      "--from": `${d.from}deg`,
+      "--sweep": `${d.sweep}deg`,
+      "--bx": String(d.bx),
+      "--by": String(d.by),
+      "--hole": `${HEX_HOLE}px`,
+    } as unknown as CSSProperties,
+  };
+}
+
+/**
+ * The hub disc's face, px from the disc's centre (discFaceSpot): measured
+ * from the disc as drawn (its radius, its rim, the turn and time stacked).
+ */
+function hubFace(cell: PolyGeom, rotation: Rotation, content: HTMLElement): { x: number; y: number; rmax: number } | null {
+  const el = content.querySelector<HTMLElement>(".tile__pill--wedge");
+  const inner = el?.querySelector<HTMLElement>(".tile__pill-inner");
+  const d = hubDisc(cell, rotation);
+  if (!el || !inner || !d || !el.offsetWidth) return null;
+  // The disc stops short of the life number's ink (as laid out: the text's
+  // own box, mapped from the screen into the face's frame), however big it
+  // is pinched, so it never covers the total.
+  let rmax = 9999;
+  const lifeEl = content.querySelector<HTMLElement>(".tile__life");
+  if (lifeEl && typeof document.createRange === "function") {
+    const range = document.createRange();
+    range.selectNodeContents(lifeEl);
+    const r = range.getBoundingClientRect?.();
+    if (r && r.width > 0) {
+      const cr = content.getBoundingClientRect();
+      const scr = faceFrame({ x: cr.left, y: cr.top, w: cr.width, h: cr.height }, rotation).toLocal;
+      const b = boxOf([scr({ x: r.left, y: r.top }), scr({ x: r.right, y: r.bottom })]);
+      // The font's line box is taller than the figures: a fifth off top and bottom.
+      const ink = { x: b.x, y: b.y + b.h * 0.2, w: b.w, h: b.h * 0.6 };
+      const dx = Math.max(ink.x - d.x, 0, d.x - (ink.x + ink.w));
+      const dy = Math.max(ink.y - d.y, 0, d.y - (ink.y + ink.h));
+      rmax = Math.max(HEX_HOLE + 40, Math.floor(Math.hypot(dx, dy) - SIGN_DISC_GAP));
+    }
+  }
+  const kids = [...inner.children] as HTMLElement[];
+  const gap = parseFloat(getComputedStyle(inner).rowGap) || 0;
+  const fw = Math.max(0, ...kids.map((k) => k.offsetWidth));
+  const fh = kids.reduce((s, k) => s + k.offsetHeight, 0) + gap * Math.max(0, kids.length - 1);
+  const { toLocal } = faceFrame(cell.face, rotation);
+  const p = discFaceSpot(cell.poly.map(toLocal), d, inner.offsetWidth / 2, HEX_HOLE, { x: d.bx, y: d.by }, fw, fh);
+  return { x: Math.round(p.x), y: Math.round(p.y), rmax };
+}
+
 const NO_STICKERS: StickerHold[] = [];
 
 let measureCtx: CanvasRenderingContext2D | null | undefined;
@@ -202,6 +265,7 @@ function polySpots(
   life: string,
   autoPill: boolean,
   stickers: StickerHold[],
+  stored: TilePos | undefined,
 ): PolySpots {
   const { sw, sh, toLocal } = faceFrame(cell.face, rotation);
   const poly = cell.poly.map(toLocal);
@@ -287,8 +351,44 @@ function polySpots(
     const prefer = { x: (DEFAULT_TIMER_POS.x / 100) * sw, y: (DEFAULT_TIMER_POS.y / 100) * sh };
     const spot = (sb.length ? clearSpot(poly, [...pb, ...sb], w, h, prefer) : null) ?? clearSpot(poly, pb, w, h, prefer);
     if (spot?.moved) pill = { x: (spot.x / sw) * 100, y: (spot.y / sh) * 100 };
+  } else if (pillEl && !pillEl.classList.contains("tile__pill--corner") && stored?.x !== undefined && stored.y !== undefined) {
+    // A dragged spot saved on another layout (or a bigger timer) can lie
+    // outside this cell: bring it to the nearest spot inside.
+    const f = fitInCell(cell, rotation, content, { x: stored.x, y: stored.y, angle: stored.angle });
+    if (f && Math.hypot(((f.x - stored.x) / 100) * sw, ((f.y - stored.y) / 100) * sh) > 0.5) pill = f;
   }
   return { more, pill };
+}
+
+const clampPct = (v: number | undefined) => (v === undefined ? v : Math.max(4, Math.min(96, v)));
+
+/** Px between a dragged timer and its freeform cell's edge. */
+const PILL_EDGE = 4;
+
+/**
+ * The nearest spot (x / y % of the face) to `pos` where the whole timer lies
+ * inside its freeform cell's polygon, PILL_EDGE px clear of its edge: a
+ * triangle's or a slanted cell's timer can go anywhere in the cell, not just
+ * in the rectangle its face fills. Measured in the face's own frame; a
+ * turned timer takes its turned extent. null when the timer fits nowhere.
+ */
+function fitInCell(
+  cell: PolyGeom,
+  rotation: Rotation,
+  content: HTMLElement,
+  pos: { x: number; y: number; angle?: number },
+): { x: number; y: number } | null {
+  const pillEl = content.querySelector<HTMLElement>(".tile__pill");
+  if (!pillEl) return null;
+  const { sw, sh, toLocal } = faceFrame(cell.face, rotation);
+  if (!sw || !sh) return null;
+  const a = ((pos.angle ?? 0) * Math.PI) / 180;
+  const pw = pillEl.offsetWidth;
+  const ph = pillEl.offsetHeight;
+  const w = Math.abs(pw * Math.cos(a)) + Math.abs(ph * Math.sin(a));
+  const h = Math.abs(pw * Math.sin(a)) + Math.abs(ph * Math.cos(a));
+  const c = clampInPoly(cell.poly.map(toLocal), w, h, { x: (pos.x / 100) * sw, y: (pos.y / 100) * sh }, PILL_EDGE);
+  return c ? { x: (c.x / sw) * 100, y: (c.y / sh) * 100 } : null;
 }
 
 /**
@@ -414,9 +514,14 @@ function signShifts(content: HTMLElement): SignShift | null {
   const pw = pillEl.offsetWidth;
   const ph = pillEl.offsetHeight;
   // A quarter disc's centre is its flush corner, a half disc's the middle
-  // of its flush edge; either way the radius is the box's short side.
-  const c = { x: pillEl.offsetLeft + cxf * pw, y: pillEl.offsetTop + cyf * ph };
-  const rad = Math.min(pw, ph) + SIGN_DISC_GAP;
+  // of its flush edge; either way the radius is the box's short side. A
+  // freeform hub disc is a whole disc whose left / top are its centre
+  // (offsetLeft ignores its translate(-50%, -50%)).
+  const whole = pillEl.classList.contains("tile__pill--wedge");
+  const c = whole
+    ? { x: pillEl.offsetLeft, y: pillEl.offsetTop }
+    : { x: pillEl.offsetLeft + cxf * pw, y: pillEl.offsetTop + cyf * ph };
+  const rad = (whole ? pw / 2 : Math.min(pw, ph)) + SIGN_DISC_GAP;
   if (measureCtx === undefined) measureCtx = document.createElement("canvas").getContext("2d");
   const out: [number, number] = [0, 0];
   const zone: [number, number] = [0, 0];
@@ -490,13 +595,30 @@ function signShifts(content: HTMLElement): SignShift | null {
 const sameShift = (a: SignShift | null, b: SignShift | null) => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b));
 
 /**
- * The life step a press on a + / − zone asks for: the zone's upper half, as
- * the seat reads its number (the content box is turned to face the seat), is
- * ±10, the lower half ±1. The glyph sits on the midline, so the line is moved
- * up by TEN_LINE of its font size: a press on the glyph itself is still ±1,
- * and the faint "10" above it marks where ±10 starts.
+ * Where ±10 starts on a + / − zone: this many px above the glyph's centre,
+ * as the seat reads its number (the content box is turned to face the seat).
+ * Everything below the line -- the glyph and a ring round it about the
+ * glyph's own size again (its ink is ~0.54em, so 0.8em from its centre, and
+ * never less than 22px: a 44px target) -- is ±1; the band above it, where
+ * the "10" sits, is ±10. On a short zone the band keeps TEN_ROOM (the label
+ * and some air) and the ring gives way, down to TEN_FLOOR (the ink and a
+ * hair). `em` is the glyph's font size, `zoneHalf` half the zone's height.
  */
-const TEN_LINE = 0.3;
+export const TEN_BUFFER = 0.8;
+export const TEN_MIN_PX = 22;
+export const TEN_ROOM = 0.8;
+export const TEN_FLOOR = 0.42;
+export function tenLine(em: number, zoneHalf: number): number {
+  const want = Math.max(TEN_BUFFER * em, TEN_MIN_PX);
+  return Math.max(TEN_FLOOR * em, Math.min(want, zoneHalf - TEN_ROOM * em));
+}
+/** Where the "10" label's foot goes, px above the glyph's centre: just past the line, inside the ±10 band. */
+export const tenLabelAt = (em: number, zoneHalf: number) => tenLine(em, zoneHalf) + 0.12 * em;
+
+/**
+ * The life step a press on a + / − zone asks for: ±10 past tenLine above
+ * the glyph (the zone's centre, as the glyph sits on its midline), else ±1.
+ */
 export function lifeStep(e: { currentTarget: HTMLElement; clientX: number; clientY: number }, rotation: number): 1 | 10 {
   const btn = e.currentTarget;
   const r = btn.getBoundingClientRect();
@@ -505,7 +627,17 @@ export function lifeStep(e: { currentTarget: HTMLElement; clientX: number; clien
   const up = (e.clientX - (r.left + r.width / 2)) * Math.sin(a) - (e.clientY - (r.top + r.height / 2)) * Math.cos(a);
   const sign = btn.querySelector<HTMLElement>(".tile__sign");
   const em = sign ? parseFloat(getComputedStyle(sign).fontSize) || 0 : 0;
-  return up > TEN_LINE * em ? 10 : 1;
+  // offsetHeight is the zone's own height, before the tile's rotation.
+  return up > tenLine(em, btn.offsetHeight / 2) ? 10 : 1;
+}
+
+/** A glyph's slide clear of the corner disc, and where its "10" sits. */
+function signStyle(shift: number | undefined, tenAt: number | null): CSSProperties | undefined {
+  if (!shift && tenAt === null) return undefined;
+  return {
+    ...(shift ? { translate: `${shift}px 0` } : {}),
+    ...(tenAt !== null ? { "--ten-at": `${tenAt}px` } : {}),
+  } as CSSProperties;
 }
 
 /** A slid glyph's own hit box (see signShifts), inside its button. */
@@ -555,20 +687,32 @@ export function PlayerTile({
   const contentRef = useRef<HTMLDivElement>(null);
   const pinnedToCorner = timerPlacement === "corner";
   // The timer goes to a clear spot in the tile until it is dragged somewhere.
-  // Freeform corner mode cannot drag, so it is always placed; a grid tile's
-  // corner mode is the corner disc instead.
-  const autoPill = cell ? pinnedToCorner || player?.timerPos?.x === undefined : !pinnedToCorner && player?.timerPos?.x === undefined;
+  // Corner mode is the corner disc instead: on a grid tile at its corner, on
+  // a freeform cell at the hub.
+  const autoPill = !pinnedToCorner && player?.timerPos?.x === undefined;
   const [spots, setSpots] = useState<PolySpots | null>(null);
   // Corner mode: how far each + / − glyph slides clear of the corner disc.
   const [signShift, setSignShift] = useState<SignShift | null>(null);
-  const autoPos = autoPill && spots?.pill ? spots.pill : undefined;
+  // The "10" label's foot, px above the glyph's centre (tenLabelAt).
+  const [tenAt, setTenAt] = useState<number | null>(null);
+  // Freeform corner mode: where the hub disc's face sits, px from its centre.
+  const [discFace, setDiscFace] = useState<{ x: number; y: number; rmax: number } | null>(null);
+  // The auto-placed spot, or (freeform) the saved spot brought inside the cell.
+  const autoPos = (autoPill || cell) && spots?.pill ? spots.pill : undefined;
+  // A grid tile keeps its timer 4-96% inside it; a spot saved on a freeform
+  // cell can lie past the face, so it is pulled back in on a grid.
+  const savedPos =
+    !cell && player?.timerPos
+      ? { ...player.timerPos, x: clampPct(player.timerPos.x), y: clampPct(player.timerPos.y) }
+      : player?.timerPos;
   const pill = usePillGesture({
-    pos: { ...DEFAULT_TIMER_POS, ...player?.timerPos, ...autoPos } as TilePos & { x: number; y: number },
+    pos: { ...DEFAULT_TIMER_POS, ...savedPos, ...autoPos } as TilePos & { x: number; y: number },
     rotation: placement.rotation,
     pinned: pinnedToCorner,
     box: () => contentRef.current,
     onTap: passTurn,
     onCommit: (p) => setTimerPos(pid, p),
+    fit: cell ? (p) => (contentRef.current ? fitInCell(cell, placement.rotation, contentRef.current, p) : null) : undefined,
   });
 
   // Accumulating life swing: sums rapid taps, shows a "+3 / -5" chip, then
@@ -621,11 +765,18 @@ export function PlayerTile({
     const content = contentRef.current;
     const next =
       !content || !player ? null
-      : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill, stickers)
+      : cell ? polySpots(cell, placement.rotation, content, String(player.life), autoPill, stickers, player.timerPos)
       : { more: null, pill: autoPill ? gridPill(placement.rotation, content) : null };
     setSpots((s) => (s === next || (s && next && sameSpot(s.more, next.more) && sameSpot(s.pill, next.pill)) ? s : next));
-    const shift = content && !cell && pinnedToCorner ? signShifts(content) : null;
+    const shift = content && pinnedToCorner ? signShifts(content) : null;
     setSignShift((s) => (sameShift(s, shift) ? s : shift));
+    const btn = content?.querySelector<HTMLElement>(".tile__adj");
+    const sign = btn?.querySelector<HTMLElement>(".tile__sign");
+    const em = sign ? parseFloat(getComputedStyle(sign).fontSize) || 0 : 0;
+    const ten = btn && em > 0 && btn.offsetHeight > 0 ? Math.round(tenLabelAt(em, btn.offsetHeight / 2) * 2) / 2 : null;
+    setTenAt((t) => (t === ten ? t : ten));
+    const face = content && cell && pinnedToCorner ? hubFace(cell, placement.rotation, content) : null;
+    setDiscFace((f) => (sameSpot(f, face) && f?.rmax === face?.rmax ? f : face));
   });
 
   const isActive = turn.activePlayerId === pid;
@@ -672,10 +823,11 @@ export function PlayerTile({
   const rotated = placement.rotation === 90 || placement.rotation === 270;
   const deathCause = poisonDead ? "POISON" : cmdrDead ? "CMDR" : "DEAD";
   const lowLife = player.life > 0 && player.life <= 5;
-  const pillPos = { ...DEFAULT_TIMER_POS, ...player.timerPos, ...autoPos, ...pill.live };
+  const pillPos = { ...DEFAULT_TIMER_POS, ...savedPos, ...autoPos, ...pill.live };
   const handle = seatHandleSpot(layout, pid);
-  const junction = pinnedToCorner ? junctionFor(layout, pid) : null;
-  const corner = junction ? cornerTimer(junction, placement.rotation) : null;
+  const junction = pinnedToCorner && !cell ? junctionFor(layout, pid) : null;
+  const disc = pinnedToCorner && cell ? hubDisc(cell, placement.rotation) : null;
+  const corner = junction ? cornerTimer(junction, placement.rotation) : disc ? hubTimer(disc, discFace) : null;
   const pillScale = scale * (pillPos.scale ?? 1);
   const pillPlace: CSSProperties = corner
     ? corner.style
@@ -769,7 +921,7 @@ export function PlayerTile({
           style={signShift?.zone[0] ? { width: signShift.zone[0] } : undefined}
           {...minus}
         >
-          <span className="tile__sign" style={signShift?.shift[0] ? { translate: `${signShift.shift[0]}px 0` } : undefined}>–</span>
+          <span className="tile__sign" style={signStyle(signShift?.shift[0], tenAt)}>–</span>
           <SignHitBox hit={signShift?.hit[0]} side="left" />
         </button>
         <button
@@ -778,7 +930,7 @@ export function PlayerTile({
           style={signShift?.zone[1] ? { width: signShift.zone[1] } : undefined}
           {...plus}
         >
-          <span className="tile__sign" style={signShift?.shift[1] ? { translate: `${signShift.shift[1]}px 0` } : undefined}>+</span>
+          <span className="tile__sign" style={signStyle(signShift?.shift[1], tenAt)}>+</span>
           <SignHitBox hit={signShift?.hit[1]} side="right" />
         </button>
 
@@ -877,7 +1029,7 @@ export function PlayerTile({
               if (e.detail === 0) passTurn();
             }}
             aria-label={
-              junction
+              corner
                 ? "turn timer: tap to pass turn, pinch to resize"
                 : "turn timer: tap to pass turn, drag to move, pinch to resize or turn"
             }

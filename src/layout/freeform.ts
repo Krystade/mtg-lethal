@@ -7,6 +7,7 @@ import type {
   Rotation,
 } from "../state/types";
 import { cellInfo, centroid, cellJunction, inscribed, insetCell, polyArea, powerCells, roundPoly, type Pt } from "./power";
+import { hubWedge } from "./polyPlace";
 
 /**
  * Freeform layouts: seats anywhere, each claiming its power-diagram cell.
@@ -267,6 +268,8 @@ export interface PolyGeom {
   poly: Pt[];
   /** The menu hexagon's centre, relative to box (null with fewer than two cells). */
   hub: Pt | null;
+  /** The cell's share of a disc round the hub, for the corner timer (see hubWedge). */
+  wedge: { from: number; sweep: number } | null;
 }
 
 export function polyGeoms(cells: LayoutCell[], W: number, H: number): Map<string, PolyGeom> {
@@ -280,13 +283,15 @@ export function polyGeoms(cells: LayoutCell[], W: number, H: number): Map<string
     const bx = Math.min(...xs);
     const by = Math.min(...ys);
     const pts = roundPoly(info.poly, 20).map((p) => ({ x: p.x - bx, y: p.y - by }));
+    const at = hub ? { x: hub.x * W - bx, y: hub.y * H - by } : null;
     out.set(c.playerId, {
       box: { x: bx, y: by, w: Math.max(...xs) - bx, h: Math.max(...ys) - by },
       clip: "polygon(" + pts.map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(",") + ")",
       ring: "M" + pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join("L") + "Z",
       face: { x: info.rect.x - bx, y: info.rect.y - by, w: info.rect.w, h: info.rect.h },
       poly: pts,
-      hub: hub ? { x: hub.x * W - bx, y: hub.y * H - by } : null,
+      hub: at,
+      wedge: at ? hubWedge(info.poly.map((p) => ({ x: p.x - bx, y: p.y - by })), at) : null,
     });
   }
   return out;

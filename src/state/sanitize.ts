@@ -109,7 +109,10 @@ export function cleanTimerPos(v: unknown): import("./types").TilePos | undefined
   const y = num(o?.y);
   if (x === undefined || y === undefined) return undefined;
   const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-  const out: import("./types").TilePos = { x: clamp(x, 0, 100), y: clamp(y, 0, 100) };
+  // % of the tile's face. A freeform cell reaches well past its face (a
+  // triangle's face fills under half its width), so a spot dragged there
+  // lies outside 0-100; the tile brings any spot back inside when drawn.
+  const out: import("./types").TilePos = { x: clamp(x, -300, 400), y: clamp(y, -300, 400) };
   const scale = num(o?.scale);
   if (scale !== undefined) out.scale = clamp(scale, TIMER_MIN_SCALE, TIMER_MAX_SCALE);
   const angle = num(o?.angle);
