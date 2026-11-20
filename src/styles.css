@@ -2525,6 +2525,16 @@ input[type="text"] {
     transform: translateX(var(--tear));
   }
 }
+/* A swatch is a glance, and Glitch idles clean nine-tenths of the time, so
+   at swatch size it was indistinguishable from Solid. Swatches show it torn;
+   the tile itself, and the new-game editor's big preview, still play it. */
+.stylechip__art[data-style="glitch"] .tile__look-dir > span:nth-child(n),
+.disclose__swatch[data-style="glitch"] .tile__look-dir > span:nth-child(n),
+.rost__swatch[data-style="glitch"] .tile__look-dir > span:nth-child(n) {
+  animation: none;
+  opacity: 1;
+  transform: translateX(var(--tear));
+}
 
 /* Motion governance: one class on the root freezes every look, and an
    eliminated seat never animates. Pausing rather than unmounting keeps
