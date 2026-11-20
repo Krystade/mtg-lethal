@@ -25,7 +25,7 @@ import {
   clampStartingLife,
 } from "../game/life";
 import { advanceTurn, tickTurn } from "../game/turn";
-import { colorForSeat, freeSeatColour } from "../layout/colors";
+import { colorForSeat, freeSeatColour, freeSeatColours } from "../layout/colors";
 import { playerColour } from "../layout/looks";
 import { clockwiseSeatOrder } from "../layout/order";
 import { defaultLayoutFor, isStandardGrid } from "../layout/presets";
@@ -108,9 +108,18 @@ function reconcilePlayers(
   const validIds = new Set(
     Array.from({ length: count }, (_, i) => `p${i}`),
   );
+  // New seats take the first presets no remaining player shows (playerColour,
+  // not seat defaults, so nobody copies a recoloured player), and differ from
+  // each other. The Customize painter previews the same colours.
+  const keptCount = Math.min(existing.length, count);
+  const fresh = freeSeatColours(
+    existing.slice(0, keptCount).map(playerColour),
+    keptCount,
+    count - keptCount,
+  );
   const next: Player[] = [];
   for (let i = 0; i < count; i++) {
-    const p = existing[i] ?? createPlayer(i, startingLife);
+    const p = existing[i] ?? { ...createPlayer(i, startingLife), color: fresh[i - keptCount] };
     // Drop commander damage from opponents who no longer exist, else their
     // stale (possibly lethal) value would haunt the player unclearable.
     const commanderDamage: Record<string, number> = {};

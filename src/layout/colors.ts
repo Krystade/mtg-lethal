@@ -24,6 +24,22 @@ export function freeSeatColour(used: Iterable<string>, fallbackSeat: number): st
   return free ?? colorForSeat(fallbackSeat);
 }
 
+/**
+ * Colours for `count` seats added at once, numbered from `firstSeat`: each
+ * takes freeSeatColour of `used` plus the seats before it, so the new seats
+ * differ from every current player and from each other.
+ */
+export function freeSeatColours(used: Iterable<string>, firstSeat: number, count: number): string[] {
+  const taken = [...used];
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const c = freeSeatColour(taken, firstSeat + i);
+    out.push(c);
+    taken.push(c);
+  }
+  return out;
+}
+
 function rgb(hex: string): [number, number, number] {
   const m = hex.replace("#", "");
   const full =

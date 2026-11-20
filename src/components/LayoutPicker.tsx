@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../state/store";
-import { colorForSeat } from "../layout/colors";
+import { colorForSeat, freeSeatColours } from "../layout/colors";
 import { playerColour } from "../layout/looks";
 import { allBuiltInPresets } from "../layout/presets";
 import type { FreeSeat, LayoutConfig, Placement, Rotation } from "../state/types";
@@ -279,10 +279,12 @@ function CustomEditor({
   const players = useStore((s) => s.game.players);
   // Seat n is player p<n>: paint it in the colour that player's tile shows,
   // which a recolour changes and the seat default never does. A seat nobody
-  // sits in yet gets the default a new player there would be created with.
+  // sits in yet shows the colour Apply will create its player with: the first
+  // presets no current player shows, in seat order (as reconcilePlayers does).
+  const freshColours = freeSeatColours(players.map(playerColour), players.length, MAX_SEATS - players.length);
   const seatColour = (seat: number) => {
     const p = players.find((q) => q.id === `p${seat}`);
-    return p ? playerColour(p) : colorForSeat(seat);
+    return p ? playerColour(p) : (freshColours[seat - players.length] ?? colorForSeat(seat));
   };
   // The painter only paints rectangles. A freeform layout opens on the grid
   // closest to its cells (the preset if no grid keeps every seat whole).

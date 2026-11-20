@@ -5,6 +5,8 @@ import { FreeformEditor } from "./FreeformEditor";
 import { useStore } from "../state/store";
 import { colorForSeat } from "../layout/colors";
 import { buildFreeLayout, seatsFromLayout } from "../layout/freeform";
+import { playerColour } from "../layout/looks";
+import { defaultLayoutFor } from "../layout/presets";
 
 afterEach(cleanup);
 
@@ -36,9 +38,11 @@ describe("Customize grid painter", () => {
       rgb(CUSTOM),
       rgb(colorForSeat(2)),
       rgb(colorForSeat(3)),
-      // Nobody sits in seats 5 and 6: they show what a new player there gets.
-      rgb(colorForSeat(4)),
-      rgb(colorForSeat(5)),
+      // Nobody sits in seats 5 and 6: they show what a new player there gets,
+      // the first presets nobody shows -- gold (p0 left it), then blue (p1
+      // left it). Not green: p0 shows that.
+      rgb(colorForSeat(0)),
+      rgb(colorForSeat(1)),
     ]);
 
     const facing = [...palettes[1].querySelectorAll<HTMLElement>(".palette__swatch")];
@@ -56,6 +60,62 @@ describe("Customize grid painter", () => {
     expect(shown.has(rgb(CUSTOM))).toBe(true);
     // Seat 1's default blue is nowhere: p1 recoloured away from it.
     expect(shown.has(rgb(colorForSeat(1)))).toBe(false);
+  });
+});
+
+describe("new players on a grid board", () => {
+  // In use after beforeEach: green (p0), custom (p1), magenta (p2), red (p3).
+  const shownBy = () => useStore.getState().game.players.map(playerColour);
+
+  it("Players + gives the new player a colour nobody shows", () => {
+    render(<LayoutPicker onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "add player" }));
+    const players = useStore.getState().game.players;
+    expect(players).toHaveLength(5);
+    expect(useStore.getState().game.layout.cells).toBeUndefined();
+    expect(playerColour(players[4])).not.toBe(GREEN);
+    expect(playerColour(players[4])).toBe(colorForSeat(0));
+  });
+
+  it("a preset with two more seats gives two distinct unused colours", () => {
+    render(<LayoutPicker onClose={() => {}} />);
+    fireEvent.click(screen.getByText("6 players").closest("button")!);
+    const shown = shownBy();
+    expect(shown).toHaveLength(6);
+    expect(new Set(shown).size).toBe(6);
+    expect(shown.slice(4)).toEqual([colorForSeat(0), colorForSeat(1)]);
+  });
+
+  it("shrinking then growing reuses only colours nobody kept", () => {
+    const s = useStore.getState();
+    s.applyLayout(defaultLayoutFor(3));
+    s.applyLayout(defaultLayoutFor(5));
+    const shown = shownBy();
+    expect(new Set(shown).size).toBe(5);
+    expect(shown.slice(0, 3)).toEqual([GREEN, CUSTOM, colorForSeat(2)]);
+  });
+
+  it("Customize Apply creates the new seat in the colour its swatch showed", () => {
+    const { container } = render(<LayoutPicker onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+    // 2x2 -> 3 rows, then paint the empty bottom row as seat 5.
+    const rowsPlus = container.querySelectorAll(".editor__row .stepper")[0].querySelectorAll("button")[1];
+    fireEvent.click(rowsPlus);
+    const swatch = container.querySelectorAll<HTMLElement>(".palette")[0].querySelectorAll<HTMLElement>(
+      ".palette__swatch:not(.palette__erase)",
+    )[4];
+    const promised = swatch.style.background;
+    fireEvent.click(swatch);
+    const cells = [...container.querySelectorAll<HTMLElement>(".editor__cell")];
+    fireEvent.click(cells[4]);
+    fireEvent.click(cells[5]);
+    expect(cells[4].style.background).toBe(promised);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    const players = useStore.getState().game.players;
+    expect(players).toHaveLength(5);
+    expect(rgb(playerColour(players[4]))).toBe(promised);
+    expect(playerColour(players[4])).not.toBe(GREEN);
   });
 });
 
