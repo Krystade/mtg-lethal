@@ -818,7 +818,7 @@ export function LayoutEditor({ W, H, gap = 8 }: Props) {
                   height: r.h,
                   background: color,
                   color: textOn(color),
-                  transform: held ? `translate(${held.dx}px, ${held.dy}px) scale(0.94)` : undefined,
+                  transform: held ? `translate(${held.dx}px, ${held.dy}px) scale(0.82)` : undefined,
                 } as CSSProperties
               }
               onPointerDown={(e) => gridDown(p.playerId, e)}
