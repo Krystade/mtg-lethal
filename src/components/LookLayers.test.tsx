@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { LookLayers, directionalFrame } from "./LookLayers";
-import { LOOK_STYLES, lookId, resolveLook } from "../layout/looks";
+import { LOOK_STYLES, lookId, numberHole, resolveLook } from "../layout/looks";
 import type { Rotation } from "../state/types";
 
 const look = (id: string) => resolveLook(id, "#3E92CC");
@@ -66,5 +66,47 @@ describe("LookLayers", () => {
   it("renders nothing for a style with no layers", () => {
     const { container } = render(<LookLayers look={look("blue-fade")} />);
     expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("LookLayers -- the number hole", () => {
+  // jsdom has no layout, so the tile and the number's text are given boxes.
+  const rects: { tile: DOMRect; text: DOMRect } = {
+    tile: { left: 100, top: 50, width: 200, height: 400 } as DOMRect,
+    text: { left: 150, top: 200, width: 100, height: 60 } as DOMRect,
+  };
+  let spies: { mockRestore(): void }[] = [];
+  beforeEach(() => {
+    spies = [
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => rects.tile),
+      vi.spyOn(document, "createRange").mockImplementation(
+        () => ({ selectNodeContents() {}, getBoundingClientRect: () => rects.text }) as unknown as Range,
+      ),
+    ];
+  });
+  afterEach(() => spies.forEach((s) => s.mockRestore()));
+
+  const tile = (id: string, withLife = true) =>
+    render(
+      <div>
+        <LookLayers look={look(id)} as="div" />
+        {withLife && <div className="tile__life">40</div>}
+      </div>,
+    ).container.querySelector(".tile__look") as HTMLElement;
+
+  it("centres the hole on the tile's life total and sizes it from numberHole", () => {
+    const el = tile("blue-glitter");
+    const h = numberHole(rects.tile, rects.text, 8);
+    expect(el.style.getPropertyValue("--hole-x")).toBe(`${h.x.toFixed(1)}px`);
+    expect(el.style.getPropertyValue("--hole-y")).toBe(`${h.y.toFixed(1)}px`);
+    expect(el.style.getPropertyValue("--hole-rx")).toBe(`${h.rx.toFixed(1)}px`);
+    expect(el.style.getPropertyValue("--hole-ry")).toBe(`${h.ry.toFixed(1)}px`);
+    expect(h.x).toBe(100);
+    expect(h.y).toBe(180);
+  });
+
+  it("writes no hole for a style without one, nor for a preview with no number", () => {
+    expect(tile("blue-lava").style.getPropertyValue("--hole-x")).toBe("");
+    expect(tile("blue-glitter", false).style.getPropertyValue("--hole-x")).toBe("");
   });
 });

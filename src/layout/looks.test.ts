@@ -107,6 +107,24 @@ describe("the contrast guarantee", () => {
     }
   });
 
+  // The one exemption: colours painted only in layers masked clear over the
+  // number (Glitter's flashes). paintedColours above is everything that can
+  // sit behind the digits; flashColours may exceed the clamp, and only a look
+  // whose layers carry the number hole may paint any. lookStyles.test.ts
+  // checks the hole itself (the CSS mask and numberHole's geometry).
+  it.each(allLookIds())("paints clamp-exempt colours on %s only behind a number hole", (id) => {
+    const look = resolveLook(id, "#000");
+    // (A flash colour may also be painted where it passes the clamp -- white
+    // facets on gold -- and the sweep above holds it there like any other.)
+    if (look.flashColours.length > 0) expect(look.numberHole).toBe(true);
+  });
+
+  it("the exemption is used, and only where declared", () => {
+    const exempt = LOOK_STYLES.filter((s) => resolveLook(lookId("blue", s.id), "#000").flashColours.length > 0);
+    expect(exempt.map((s) => s.id)).toEqual(["glitter"]);
+    expect(LOOK_STYLES.filter((s) => s.numberHole).map((s) => s.id)).toEqual(["glitter"]);
+  });
+
   it("actually discriminates — a light grey on white fails the same bar", () => {
     expect(contrastRatio("#ffffff", "#b0b0b0")).toBeLessThan(3);
     expect(contrastRatio("#ffffff", "#000000")).toBeGreaterThan(20);

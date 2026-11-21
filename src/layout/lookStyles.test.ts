@@ -10,15 +10,18 @@ import {
   HEART_ALPHA,
   accentFor,
   crackNetwork,
+  facetDataUri,
   fissureDataUris,
+  glintDataUri,
   glitterInks,
   grainDataUri,
   heartDataUri,
   heartInk,
+  NUMBER_HOLE_CLEAR,
+  numberHole,
   reachToward,
   resolveLook,
   TARTAN_SETT,
-  sparkleDataUri,
   stoneFor,
   tartanCrossing,
   tartanDataUri,
@@ -51,108 +54,136 @@ describe("reachToward", () => {
 });
 
 describe("glitter", () => {
-  it("uses dark specks on gold, where light ones would vanish into the base", () => {
-    const l = resolveLook("gold-glitter", "#000");
-    const { speck } = glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
-    expect(speck).toBe(l.vars["--look-lo"]);
-  });
+  const inks = (id: string) => {
+    const l = resolveLook(id, "#000");
+    return { l, g: glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]) };
+  };
 
   it("keeps the base as the ground on a dark-ink hue", () => {
-    const l = resolveLook("gold-glitter", "#000");
-    expect(glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]).ground).toBe(l.base);
+    const { l, g } = inks("gold-glitter");
+    expect(g.ground).toBe(l.base);
   });
 
   it.each(["blue", "green", "magenta", "red", "purple"])(
-    "deepens the ground on %s, so a glint it can afford still stands out",
+    "deepens the ground on %s, so a facet it can afford still shows",
     (hue) => {
-      const l = resolveLook(`${hue}-glitter`, "#000");
-      const { ground, glint } = glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
+      const { l, g } = inks(`${hue}-glitter`);
       // Darker than the base: more contrast for the white number, never less.
-      expect(contrastRatio("#ffffff", ground)).toBeGreaterThan(contrastRatio("#ffffff", l.base));
-      // And the glint now clearly outshines its ground, where on the bare
-      // base it barely did.
-      expect(contrastRatio(glint, ground)).toBeGreaterThan(1.4);
+      expect(contrastRatio("#ffffff", g.ground)).toBeGreaterThan(contrastRatio("#ffffff", l.base));
+      // And the brightest bed facet clearly outshines its ground.
+      expect(Math.max(...g.field.map((c) => contrastRatio(c, g.ground)))).toBeGreaterThan(1.4);
     },
   );
 
-  it("discriminates — on bare blue the glint all but vanishes", () => {
-    const l = resolveLook("blue-glitter", "#000");
-    const { glint } = glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
-    expect(contrastRatio(glint, l.base)).toBeLessThan(1.15);
-  });
-
-  it("uses light specks on a deepened green", () => {
-    const l = resolveLook("green-glitter", "#000");
-    const { speck, glint } = glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
-    expect(speck).toBe(glint);
-  });
-
-  it("paints its speck and glint, so the contrast sweep sees them", () => {
-    const l = resolveLook("gold-glitter", "#000");
-    const { speck, glint } = glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
-    expect(l.paintedColours).toEqual(expect.arrayContaining([speck, glint]));
-    // And the glint really is new paint: white is in no other gold style.
-    expect(resolveLook("gold-lava", "#000").paintedColours).not.toContain(glint);
-  });
-
-  it("supplies the grain and both sparkle tiles", () => {
-    const l = resolveLook("purple-glitter", "#000");
-    for (const v of ["--look-grain", "--look-spark-a", "--look-spark-b"]) {
-      expect(l.vars[v]).toMatch(/^url\("data:image\/svg\+xml,/);
+  it("lists the whole bed and the sheen as painted, so the contrast sweep holds them", () => {
+    for (const hue of ["gold", "blue", "green", "#20c0a0", "#ff8800"]) {
+      const { l, g } = inks(`${hue}-glitter`);
+      expect(l.paintedColours).toEqual(expect.arrayContaining([g.ground, g.sheenLo, g.sheenHi, ...g.field]));
     }
   });
 
-  it("thresholds the grain hard and paints it in sRGB", () => {
+  it("paints its flashes only as flash colours, never as ground the number may sit on", () => {
+    const { l, g } = inks("blue-glitter");
+    expect(l.numberHole).toBe(true);
+    expect(l.flashColours).toEqual(g.flash);
+    expect(g.flash).toContain("#ffffff");
+    for (const c of g.flash) expect(l.paintedColours).not.toContain(c);
+  });
+
+  it("discriminates -- the flashes are too bright for a white number, so the hole is load-bearing", () => {
+    const { l } = inks("blue-glitter");
+    expect(textOn(l.base)).toBe("#ffffff");
+    expect(Math.min(...l.flashColours.map((c) => contrastRatio("#ffffff", c)))).toBeLessThan(3);
+  });
+
+  it("has no dirt: the shadow facet stays close to its ground, in the hue", () => {
+    for (const hue of ["gold", "blue", "green", "red", "#e0702e"]) {
+      const { g } = inks(`${hue}-glitter`);
+      expect(contrastRatio(g.field[0], g.ground)).toBeLessThan(1.6);
+    }
+  });
+
+  it("masks the bright layers clear over the number, in both mask properties", () => {
+    const rule = css.match(/\.look\[data-style="glitter"\] \.tile__look \{([^}]*)\}/);
+    expect(rule).not.toBeNull();
+    const clear = `transparent ${NUMBER_HOLE_CLEAR * 100}%`;
+    for (const prop of ["-webkit-mask-image", "mask-image"]) {
+      const decl = rule![1].match(new RegExp(`(?:^|[;\\s])${prop.replace(/-/g, "\\-")}:([^;]*);`));
+      expect(decl, prop).not.toBeNull();
+      expect(decl![1]).toMatch(
+        /radial-gradient\(\s*var\(--hole-rx[^)]*\) var\(--hole-ry[^)]*\) at var\(--hole-x[^)]*\) var\(--hole-y/,
+      );
+      expect(decl![1]).toContain(clear);
+    }
+  });
+
+  it("puts the flashes only in the masked layers, and the bed only on the tile", () => {
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const blocks = [...bare.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) => m[1].includes('data-style="glitter"'));
+    const flashUsers = blocks.filter((m) => /--look-(flash|glints)/.test(m[2]));
+    expect(flashUsers.length).toBe(3);
+    for (const m of flashUsers) expect(m[1]).toMatch(/\.tile__look span/);
+    const bed = blocks.find((m) => m[2].includes("--look-bed-a"));
+    expect(bed![1].trim()).toBe('.look[data-style="glitter"]');
+  });
+
+  it("sizes the clear part of the hole to contain the number's box, corners and pad included", () => {
+    const box = { left: 140, top: 300, width: 90, height: 120 };
+    const pad = 9;
+    const h = numberHole({ left: 100, top: 200 }, box, pad);
+    expect(h.x).toBe(85);
+    expect(h.y).toBe(160);
+    const inClear = (dx: number, dy: number) =>
+      (dx / (h.rx * NUMBER_HOLE_CLEAR)) ** 2 + (dy / (h.ry * NUMBER_HOLE_CLEAR)) ** 2;
+    // Every corner of the padded box sits on or inside the clear ellipse ...
+    expect(inClear(box.width / 2 + pad, box.height / 2 + pad)).toBeLessThanOrEqual(1 + 1e-9);
+    // ... and not by accident: a box much bigger would not.
+    expect(inClear(box.width / 2 + pad + 20, box.height / 2 + pad + 20)).toBeGreaterThan(1);
+  });
+
+  it("thresholds grain hard and paints it in sRGB (Fissure's mottling uses it)", () => {
     const svg = svgOf(grainDataUri("#123456", 0.62, 7));
     expect(svg).toContain("color-interpolation-filters='sRGB'");
     expect(svg).toContain("stitchTiles='stitch'");
     // alpha = 30 * noise - 30 * cut: transparent below the cut, solid just above.
     expect(svg).toMatch(/ 30 0 0 0 -18\.60'/);
-    // The speck colour arrives as the matrix constants.
     expect(svg).toContain("0 0 0 0 0.071 0 0 0 0 0.204 0 0 0 0 0.337");
   });
 
-  it("builds sparkle tiles at the asked size with the asked dots and stars", () => {
-    const svg = svgOf(sparkleDataUri(97, 3, 11, 3, "#111111", "#eeeeee"));
-    expect(svg).toContain("width='97' height='97'");
-    expect(svg.match(/<circle /g)).toHaveLength(11);
-    expect(svg.match(/<path /g)).toHaveLength(3);
-    // Stars are always glints; dots are 1 or 2px across.
-    expect(svg.match(/<path [^>]*fill='#eeeeee'/g)).toHaveLength(3);
-    for (const r of svg.match(/r='[\d.]+'/g) ?? []) {
-      expect(["r='0.5'", "r='1'"]).toContain(r);
-    }
-  });
-
-  it("keeps every sparkle inside its tile so the repeat has no cut-off halves", () => {
-    const svg = svgOf(sparkleDataUri(131, 8, 40, 6, "#111111", "#eeeeee"));
-    const nums = [...svg.matchAll(/c[xy]='([\d.]+)'/g)].map((m) => Number(m[1]));
+  it("builds facet tiles of turned squares in the given colours, wholly inside the tile", () => {
+    const svg = svgOf(facetDataUri(61, 5, 120, ["#111111", "#eeeeee"], 0.4, 1.8));
+    expect(svg).toContain("width='61' height='61'");
+    const polys = svg.match(/<polygon points='[^']+' fill='[^']+'\/>/g) ?? [];
+    expect(polys).toHaveLength(120);
+    for (const p of polys) expect(p).toMatch(/fill='#(111111|eeeeee)'/);
+    const nums = [...svg.matchAll(/points='([^']+)'/g)].flatMap((m) => m[1].split(/\s+/)).map(Number);
+    expect(nums.length).toBe(120 * 8);
     for (const n of nums) {
-      expect(n).toBeGreaterThanOrEqual(1);
-      expect(n).toBeLessThanOrEqual(130);
-    }
-    const pts = [...svg.matchAll(/d='([^']+)'/g)]
-      .flatMap((m) => m[1].match(/-?[\d.]+/g) ?? [])
-      .map(Number);
-    for (const n of pts) {
       expect(n).toBeGreaterThanOrEqual(0);
-      expect(n).toBeLessThanOrEqual(131);
+      expect(n).toBeLessThanOrEqual(61);
     }
   });
 
-  it("bakes the same sparkles every time, so a re-render cannot reshuffle them", () => {
-    expect(sparkleDataUri(97, 3, 11, 3, "#111111", "#eeeeee")).toBe(
-      sparkleDataUri(97, 3, 11, 3, "#111111", "#eeeeee"),
-    );
-    expect(sparkleDataUri(97, 3, 11, 3, "#111111", "#eeeeee")).not.toBe(
-      sparkleDataUri(97, 4, 11, 3, "#111111", "#eeeeee"),
-    );
+  it("bakes the same facets every time, so a re-render cannot reshuffle them", () => {
+    const a = facetDataUri(97, 3, 40, ["#111111", "#eeeeee"], 0.4, 1.5);
+    expect(facetDataUri(97, 3, 40, ["#111111", "#eeeeee"], 0.4, 1.5)).toBe(a);
+    expect(facetDataUri(97, 4, 40, ["#111111", "#eeeeee"], 0.4, 1.5)).not.toBe(a);
   });
 
-  it("keeps the glint legible on a white-ink hue it could not make white", () => {
-    const l = resolveLook("blue-glitter", "#000");
-    const { glint } = glitterInks(l.base, l.vars["--look-lo"], l.vars["--look-hi"]);
-    expect(contrastRatio(textOn(l.base), glint)).toBeGreaterThanOrEqual(3);
+  it("builds star glints: halo, long star, short crossed star and a white core each", () => {
+    const svg = svgOf(glintDataUri(173, 21, 4, "#ffffff"));
+    expect(svg).toContain("width='173' height='173'");
+    expect(svg.match(/<path /g)).toHaveLength(8);
+    expect(svg.match(/rotate\(45 /g)).toHaveLength(4);
+    expect(svg.match(/fill='url\(#h\)'/g)).toHaveLength(4);
+  });
+
+  it("supplies every image its CSS reads", () => {
+    const l = resolveLook("purple-glitter", "#000");
+    for (const v of ["--look-bed-a", "--look-bed-b", "--look-flash-a", "--look-flash-b", "--look-glints"]) {
+      expect(l.vars[v]).toMatch(/^url\("data:image\/svg\+xml,/);
+      expect(css).toContain(`var(${v})`);
+    }
   });
 });
 
