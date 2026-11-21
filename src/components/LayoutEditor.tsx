@@ -7,20 +7,38 @@ import { cellInfo, powerCells, roundPoly, type CellInfo, type Pt, type Rect } fr
 import {
   BUILTIN_TEMPLATES,
   MAX_SEATS,
-  buildFreeLayout,
   seatsFromLayout,
   shrinkToMarkers,
   templateSeats,
 } from "../layout/freeform";
-import type { FreeSeat, FreeTemplate, Rotation } from "../state/types";
+import {
+  draftFromLayout,
+  finishFree,
+  finishGrid,
+  freeToGrid,
+  gridFromTemplate,
+  gridPresetsFor,
+  gridToFree,
+  lastSeat,
+  sameGrid,
+  standardGrid,
+  swapInGrid,
+  turnInGrid,
+  type Draft,
+  type GridDraft,
+} from "../layout/arrange";
+import { pxRects } from "../layout/table";
+import type { FreeSeat, FreeTemplate, LayoutConfig, Rotation } from "../state/types";
 import { MIN_TILE, SEAT_GAP as GAP, fillSpot as fillSpotPx, overlap, padded } from "../layout/seatFill";
 
 /**
- * Freeform "Edit layout": drag seats, resize them (pinch, wheel, edge and
- * corner grips), turn them (twist, Shift+wheel, ⟳), remove (−) and add (+)
- * seats, with a live power-diagram preview. Confirm bakes it into the game's
- * layout and saves a template. Ported from the layout-editor prototype's
- * "Freeform + Gaps: Fill" mode. Life buttons underneath are covered, so inert.
+ * The one Layout screen, over the live board: a Grid | Freeform switch,
+ * Players − N +, a strip of templates for the mode, Undo, Save, Cancel and
+ * Done. Grid: drag a tile onto another to swap seats, ⟳ turns a tile. Freeform:
+ * drag seats, resize them (pinch, wheel, edge and corner grips), turn them
+ * (twist, Shift+wheel, ⟳), remove (−) and add seats, with a live
+ * power-diagram preview. Everything is a draft until Done. Life buttons
+ * underneath are covered, so inert.
  */
 
 const SNAP = 8;
@@ -46,7 +64,19 @@ interface Gesture {
 }
 
 interface EdState {
+  mode: "grid" | "free";
+  /** Freeform seats; also kept (stale) in grid mode, and unused there. */
   seats: FreeSeat[];
+  /** Cells to draw instead of the seats' power cells, while drawnKey still matches the seats. */
+  drawn: Pt[][] | null;
+  drawnKey: string;
+  grid: GridDraft;
+  /** The tile being dragged in grid mode, and where it is over. */
+  gridDrag: { pid: string; dx: number; dy: number; over: string | null } | null;
+  /** Freeform -> Grid remembers the freeform board, to put back if the grid is not touched. */
+  lastFree: { grid: string; free: string } | null;
+  /** The draft as it opened, so Done with nothing changed leaves the game alone. */
+  opened: string;
   history: string[];
   held: string | null;
   guides: Guide[];
@@ -62,15 +92,23 @@ interface EdState {
 interface Props {
   W: number;
   H: number;
+  /** The board's gap between grid tiles, px. */
+  gap?: number;
 }
 
-export function FreeformEditor({ W, H }: Props) {
+const geomOf = (seats: FreeSeat[]) => JSON.stringify(seats.map((s) => [s.playerId, s.x, s.y, s.w, s.h]));
+const FACE_SIDE = { 0: "bottom", 90: "left", 180: "top", 270: "right" } as const;
+
+export function LayoutEditor({ W, H, gap = 8 }: Props) {
   const layout = useStore((s) => s.game.layout);
   const players = useStore((s) => s.game.players);
   const templates = useStore((s) => s.freeTemplates);
+  const customLayouts = useStore((s) => s.customLayouts);
   const applyFreeform = useStore((s) => s.applyFreeform);
   const saveFreeTemplate = useStore((s) => s.saveFreeTemplate);
   const deleteFreeTemplate = useStore((s) => s.deleteFreeTemplate);
+  const saveCustomLayout = useStore((s) => s.saveCustomLayout);
+  const deleteCustomLayout = useStore((s) => s.deleteCustomLayout);
   const stop = useLayoutEdit((s) => s.stop);
   const [, force] = useReducer((x: number) => x + 1, 0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -79,8 +117,17 @@ export function FreeformEditor({ W, H }: Props) {
 
   const stRef = useRef<EdState | null>(null);
   if (!stRef.current) {
-    stRef.current = {
-      seats: seatsFromLayout(layout),
+    const d: Draft = draftFromLayout(layout);
+    const seats = d.mode === "free" ? d.seats : seatsFromLayout(layout);
+    const init: EdState = {
+      mode: d.mode,
+      seats,
+      drawn: d.mode === "free" ? d.drawn : null,
+      drawnKey: geomOf(seats),
+      grid: d.mode === "grid" ? d : freeToGrid({ mode: "free", seats, drawn: null }),
+      gridDrag: null,
+      lastFree: null,
+      opened: "",
       history: [],
       held: null,
       guides: [],
@@ -92,6 +139,7 @@ export function FreeformEditor({ W, H }: Props) {
       toast: "",
       toastTimer: 0,
     };
+    stRef.current = init;
   }
   const st = stRef.current;
 
@@ -101,15 +149,16 @@ export function FreeformEditor({ W, H }: Props) {
   // choice for a new seat mirrors applyFreeform's, so Confirm keeps it.
   const byId = new Map(players.map((p) => [p.id, p]));
   const colorOf = (() => {
-    const used = new Set(st.seats.filter((s) => byId.has(s.playerId)).map((s) => playerColour(byId.get(s.playerId)!)));
+    const seatIdsNow = st.mode === "grid" ? st.grid.placements.map((p) => p.playerId) : st.seats.map((s) => s.playerId);
+    const used = new Set(seatIdsNow.filter((id) => byId.has(id)).map((id) => playerColour(byId.get(id)!)));
     const out = new Map<string, string>();
-    for (const s of st.seats) {
-      const p = byId.get(s.playerId);
-      if (p) out.set(s.playerId, playerColour(p));
+    for (const id of seatIdsNow) {
+      const p = byId.get(id);
+      if (p) out.set(id, playerColour(p));
       else {
         const c = freeSeatColour(used, out.size);
         used.add(c);
-        out.set(s.playerId, c);
+        out.set(id, c);
       }
     }
     return out;
@@ -123,13 +172,24 @@ export function FreeformEditor({ W, H }: Props) {
     t.w = r.w / dims.current.W;
     t.h = r.h / dims.current.H;
   };
-  const snap = () => JSON.stringify(st.seats);
+  // The whole draft, for undo: mode, seats (and the cells they draw) and grid.
+  const snap = () =>
+    JSON.stringify({ mode: st.mode, seats: st.seats, drawn: st.drawn, drawnKey: st.drawnKey, grid: st.grid, lastFree: st.lastFree });
   const restore = (s: string) => {
-    st.seats = JSON.parse(s);
+    const v = JSON.parse(s);
+    st.mode = v.mode;
+    st.seats = v.seats;
+    st.drawn = v.drawn;
+    st.drawnKey = v.drawnKey;
+    st.grid = v.grid;
+    st.lastFree = v.lastFree;
   };
   const commit = (before: string) => {
+    // A seat moved, resized, added or removed: its cell follows it from now on.
+    if (st.drawn && geomOf(st.seats) !== st.drawnKey) st.drawn = null;
     if (snap() !== before) st.history.push(before);
   };
+  if (!st.opened) st.opened = snap();
   const toast = (msg: string) => {
     st.toast = msg;
     window.clearTimeout(st.toastTimer);
@@ -408,16 +468,29 @@ export function FreeformEditor({ W, H }: Props) {
     force();
   };
   const removeSeat = (pid: string) => {
+    if (st.mode === "grid") {
+      const ids = st.grid.placements.map((p) => p.playerId);
+      if (ids.length <= 1) return;
+      const before = snap();
+      st.grid = standardGrid(ids.filter((id) => id !== pid));
+      commit(before);
+      force();
+      return;
+    }
     if (st.seats.length <= 1) return;
-    st.history.push(snap());
+    const before = snap();
     st.seats = st.seats.filter((t) => t.playerId !== pid);
+    commit(before);
     force();
   };
   const rotateSeat = (pid: string) => {
-    const t = st.seats.find((q) => q.playerId === pid);
-    if (!t) return;
     const before = snap();
-    setRot(t, effRot(t) + 90);
+    if (st.mode === "grid") st.grid = turnInGrid(st.grid, pid);
+    else {
+      const t = st.seats.find((q) => q.playerId === pid);
+      if (!t) return;
+      setRot(t, effRot(t) + 90);
+    }
     commit(before);
     force();
   };
@@ -428,29 +501,118 @@ export function FreeformEditor({ W, H }: Props) {
       force();
     }
   };
+  const ids = () => (st.mode === "grid" ? st.grid.placements.map((p) => p.playerId) : st.seats.map((s) => s.playerId));
+  /** Players − / +: a grid goes to the standard grid for the new count; freeform fills a gap. */
+  const stepPlayers = (delta: 1 | -1) => {
+    const cur = ids();
+    const n = cur.length + delta;
+    if (n < 1 || n > MAX_SEATS) return;
+    if (delta < 0) return removeSeat(lastSeat(cur));
+    if (st.mode === "free") return addSeat();
+    const before = snap();
+    st.grid = standardGrid([...cur, `new${++st.seq}`]);
+    commit(before);
+    force();
+  };
+  /** The Grid | Freeform switch. */
+  const setMode = (mode: "grid" | "free") => {
+    if (mode === st.mode) return;
+    const before = snap();
+    if (mode === "grid") {
+      const free = JSON.stringify({ seats: st.seats, drawn: st.drawn, drawnKey: st.drawnKey });
+      st.grid = freeToGrid({ mode: "free", seats: st.seats, drawn: st.drawn });
+      st.lastFree = { grid: JSON.stringify(st.grid), free };
+    } else {
+      const back = st.lastFree && st.lastFree.grid === JSON.stringify(st.grid) ? JSON.parse(st.lastFree.free) : null;
+      if (back) {
+        // Straight back from the standard grid: the freeform board it replaced.
+        st.seats = back.seats;
+        st.drawn = back.drawn;
+        st.drawnKey = back.drawnKey;
+      } else {
+        const d = gridToFree(st.grid, dims.current.W, dims.current.H);
+        st.seats = d.seats;
+        st.drawn = d.drawn;
+        st.drawnKey = geomOf(d.seats);
+      }
+      st.lastFree = null;
+    }
+    st.mode = mode;
+    st.gridDrag = null;
+    commit(before);
+    force();
+  };
   const applyTemplate = (t: FreeTemplate) => {
     const before = snap();
     const next = templateSeats(t);
-    const ids = st.seats.map((s) => s.playerId);
-    st.seats = next.map((s, i) => ({ ...s, playerId: ids[i] ?? `new${++st.seq}` }));
+    const cur = ids();
+    st.seats = next.map((s, i) => ({ ...s, playerId: cur[i] ?? `new${++st.seq}` }));
     commit(before);
     toast(`Applied “${t.name}”`);
   };
+  const applyGrid = (l: LayoutConfig) => {
+    const before = snap();
+    st.grid = gridFromTemplate(l, ids(), () => `new${++st.seq}`);
+    commit(before);
+    toast(`Applied “${l.name}”`);
+  };
+  const save = () => {
+    if (st.mode === "grid") {
+      const r = saveCustomLayout(finishGrid(st.grid).layout);
+      toast(r.fresh ? `Saved as “${r.name}”` : `Already saved as “${r.name}”`);
+      return;
+    }
+    const r = saveFreeTemplate(st.seats);
+    toast(r.fresh ? `Saved as “${r.name}”` : `Already saved as “${r.name}”`);
+  };
   const confirm = () => {
-    const raw = powerCells(st.seats);
-    if (raw.some((rp) => !cellInfo(rp, W, H).ok)) {
+    if (snap() === st.opened) return stop();
+    if (st.mode === "grid") {
+      const f = finishGrid(st.grid);
+      applyFreeform(f.layout, f.keep);
+      return stop();
+    }
+    const live = st.drawn && geomOf(st.seats) === st.drawnKey ? st.drawn : null;
+    const f = finishFree({ mode: "free", seats: st.seats, drawn: live }, W, H);
+    if (!f) {
       toast("A seat has too little room — grow it or move it");
       return;
     }
-    const facings = st.seats.map((s, i) => s.rot ?? cellInfo(raw[i], W, H).auto);
-    const next = buildFreeLayout(st.seats, "Freeform", facings);
-    applyFreeform(
-      next,
-      st.seats.map((s) => (byId.has(s.playerId) ? s.playerId : null)),
-    );
-    saveFreeTemplate(st.seats);
+    applyFreeform(f.layout, f.keep);
     stop();
   };
+
+  /** Grid mode: hold a tile and drop it on another to swap the two seats. */
+  function gridDown(pid: string, e: RPointerEvent) {
+    if (st.gest || e.button > 0) return;
+    if ((e.target as HTMLElement).closest(".fe-badge")) return;
+    e.preventDefault();
+    const before = snap();
+    let start: Pt = { x: 0, y: 0 };
+    const g: Gesture = {
+      multi: false,
+      pointers: new Map(),
+      br: new DOMRect(),
+      rebase: () => {
+        start = local(g, [...g.pointers.values()][0]);
+      },
+      move: () => {
+        const p = local(g, [...g.pointers.values()][0]);
+        const rects = pxRects(st.grid, dims.current.W, dims.current.H, gap);
+        const over = Object.entries(rects).find(([, r]) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h)?.[0] ?? null;
+        st.gridDrag = { pid, dx: p.x - start.x, dy: p.y - start.y, over: over === pid ? null : over };
+        force();
+      },
+      end: () => {
+        const d = st.gridDrag;
+        st.gridDrag = null;
+        if (d?.over) st.grid = swapInGrid(st.grid, pid, d.over);
+        commit(before);
+        force();
+      },
+    };
+    beginGesture(g, e.nativeEvent);
+  }
 
   // ---- window-level pointer tracking, so re-renders never drop a gesture ----
   useEffect(() => {
@@ -557,8 +719,10 @@ export function FreeformEditor({ W, H }: Props) {
   }, [st]);
 
   // ---- render ----
-  const seats = st.seats;
-  const raw = W > 0 ? powerCells(seats) : [];
+  const grid = st.mode === "grid";
+  const seats = grid ? [] : st.seats;
+  const drawnNow = st.drawn && geomOf(st.seats) === st.drawnKey ? st.drawn : null;
+  const raw = W > 0 ? drawnNow ?? powerCells(seats) : [];
   const cells: CellInfo[] = raw.map((rp) => cellInfo(rp, W, H));
   seats.forEach((t, i) => st.auto.set(t.playerId, cells[i]?.auto ?? 0));
   const rects = seats.map(pxOf);
@@ -574,11 +738,129 @@ export function FreeformEditor({ W, H }: Props) {
   cells.forEach((c, i) => {
     if (!c.ok) bad.add(seats[i].playerId);
   });
-  const live = !!st.held || st.wheel;
+  const live = !!st.held || st.wheel || !!st.gridDrag;
+  const n = grid ? st.grid.placements.length : st.seats.length;
   const builtins = BUILTIN_TEMPLATES;
+  // Templates for the mode: this many players first.
+  const byCount = <T,>(xs: T[], count: (x: T) => number) => [
+    ...xs.filter((x) => count(x) === n),
+    ...xs.filter((x) => count(x) !== n),
+  ];
+  const savedGrids = byCount(
+    customLayouts.filter((l) => !l.cells),
+    (l) => l.placements.length,
+  );
+  const savedFree = customLayouts.filter((l) => l.cells?.length);
+  const freeChips: { t: FreeTemplate; del?: () => void }[] = byCount(
+    [
+      ...builtins.map((t) => ({ t })),
+      ...templates.map((t) => ({ t, del: () => deleteFreeTemplate(t.id) })),
+      ...savedFree.map((l) => ({
+        t: { id: l.id, name: l.name, seats: seatsFromLayout(l).map(({ playerId: _p, ...s }) => s) },
+        del: () => deleteCustomLayout(l.id),
+      })),
+    ],
+    (c) => c.t.seats.length,
+  );
+  const gridRects = grid && W > 0 ? pxRects(st.grid, W, H, gap) : {};
 
   return (
-    <div className={`fe${live ? " is-live" : ""}`} ref={rootRef}>
+    <div className={`fe fe--${st.mode}${live ? " is-live" : ""}`} ref={rootRef}>
+      <div className="fe-top">
+        <div className="fe-seg" role="radiogroup" aria-label="Layout mode">
+          {(["grid", "free"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={st.mode === m}
+              className={`fe-seg__opt${st.mode === m ? " is-on" : ""}`}
+              onClick={() => setMode(m)}
+            >
+              {m === "grid" ? "▦ Grid" : "✥ Freeform"}
+            </button>
+          ))}
+        </div>
+        <div className="fe-step" aria-label="Players">
+          <button type="button" className="fe-btn fe-btn--icon" aria-label="remove player" disabled={n <= 1} onClick={() => stepPlayers(-1)}>
+            −
+          </button>
+          <span className="fe-step__n" aria-label="player count">
+            {n}
+            <small>players</small>
+          </span>
+          <button type="button" className="fe-btn fe-btn--icon" aria-label="add player" disabled={n >= MAX_SEATS} onClick={() => stepPlayers(1)}>
+            +
+          </button>
+        </div>
+      </div>
+
+      {grid &&
+        st.grid.placements.map((p) => {
+          const r = gridRects[p.playerId];
+          if (!r) return null;
+          const color = colorOf.get(p.playerId) ?? "#888";
+          const player = byId.get(p.playerId);
+          const held = st.gridDrag?.pid === p.playerId ? st.gridDrag : null;
+          const fw = p.rotation % 180 ? r.h : r.w;
+          const fh = p.rotation % 180 ? r.w : r.h;
+          return (
+            <div
+              key={`g-${p.playerId}`}
+              className={`ge-tile${held ? " is-held" : ""}${st.gridDrag?.over === p.playerId ? " is-target" : ""}`}
+              data-pid={p.playerId}
+              data-face={FACE_SIDE[p.rotation]}
+              style={
+                {
+                  left: r.x,
+                  top: r.y,
+                  width: r.w,
+                  height: r.h,
+                  background: color,
+                  color: textOn(color),
+                  transform: held ? `translate(${held.dx}px, ${held.dy}px) scale(0.94)` : undefined,
+                } as CSSProperties
+              }
+              onPointerDown={(e) => gridDown(p.playerId, e)}
+            >
+              <div className="fe-face" style={{ left: r.w / 2, top: r.h / 2 }}>
+                <div
+                  className="fe-face__in"
+                  style={
+                    {
+                      width: fw,
+                      height: fh,
+                      transform: `translate(-50%, -50%) rotate(${p.rotation}deg)`,
+                      "--fs": `${clamp(0.3 * Math.min(fw, fh), 22, 120)}px`,
+                    } as CSSProperties
+                  }
+                >
+                  <span className="fe-face__life">{player ? player.life : "new"}</span>
+                  <span className="fe-face__name">{player ? player.name : "New player"}</span>
+                </div>
+              </div>
+              {n > 1 && (
+                <button
+                  type="button"
+                  className="fe-badge fe-badge--del"
+                  aria-label={`remove ${player?.name ?? "new player"}`}
+                  onClick={() => removeSeat(p.playerId)}
+                >
+                  −
+                </button>
+              )}
+              <button
+                type="button"
+                className="fe-badge fe-badge--rot"
+                aria-label={`turn ${player?.name ?? "new player"} to face the next side`}
+                onClick={() => rotateSeat(p.playerId)}
+              >
+                ⟳
+              </button>
+            </div>
+          );
+        })}
+
       {seats.map((t, i) => {
         const c = cells[i];
         if (!c || c.poly.length < 3) return null;
@@ -637,7 +919,7 @@ export function FreeformEditor({ W, H }: Props) {
         const r = rects[i];
         const color = colorOf.get(t.playerId) ?? "#888";
         const preview = st.held === t.playerId && st.previewRot != null ? st.previewRot : null;
-        const face = preview != null ? ({ 0: "bottom", 90: "left", 180: "top", 270: "right" } as const)[snapQuad(preview)] : undefined;
+        const face = preview != null ? FACE_SIDE[snapQuad(preview)] : undefined;
         return (
           <div
             key={`s-${t.playerId}`}
@@ -661,7 +943,7 @@ export function FreeformEditor({ W, H }: Props) {
             <button
               type="button"
               className="fe-badge fe-badge--rot"
-              aria-label="turn to face the next side"
+              aria-label={`turn ${byId.get(t.playerId)?.name ?? "new player"} to face the next side`}
               onClick={() => rotateSeat(t.playerId)}
             >
               ⟳
@@ -676,48 +958,81 @@ export function FreeformEditor({ W, H }: Props) {
       {st.guides.map((g, i) => (
         <div key={i} className={`fe-guide fe-guide--${g.ax}`} style={g.ax === "x" ? { left: g.pos } : { top: g.pos }} />
       ))}
-      {seats.length < MAX_SEATS && (
-        <button type="button" className="fe-fab" aria-label="add player" onClick={addSeat}>
-          +
-        </button>
-      )}
       {st.toast && (
         <div className="fe-toast" role="status">
           {st.toast}
         </div>
       )}
-      <div className="fe-bar">
-        <button type="button" className="fe-btn fe-btn--icon" aria-label="undo" disabled={!st.history.length} onClick={undo}>
-          ↶
-        </button>
-        <div className="fe-chips" aria-label="Templates">
-          {[...builtins, ...templates].map((t) => (
-            <span key={t.id} className="fe-chip-wrap">
-              <button type="button" className="fe-chip" onClick={() => applyTemplate(t)} aria-label={`template ${t.name}`}>
-                <Thumb tpl={t} />
-                {t.name}
-              </button>
-              {!builtins.includes(t) && (
-                <button
-                  type="button"
-                  className="fe-chip__del"
-                  aria-label={`delete template ${t.name}`}
-                  onClick={() => deleteFreeTemplate(t.id)}
-                >
-                  ✕
-                </button>
-              )}
-            </span>
-          ))}
+      <div className="fe-bottom">
+        <div className="fe-chips" aria-label={grid ? "Grid templates" : "Freeform templates"}>
+          <button type="button" className="fe-chip fe-chip--save" onClick={save} aria-label="save as template">
+            <span aria-hidden="true">＋</span>Save
+          </button>
+          {grid
+            ? [
+                ...gridPresetsFor(n).map((l) => ({ l, del: undefined as (() => void) | undefined })),
+                ...savedGrids.map((l) => ({ l, del: () => deleteCustomLayout(l.id) })),
+              ].map(({ l, del }) => (
+                <span key={l.id} className="fe-chip-wrap">
+                  <button
+                    type="button"
+                    className={`fe-chip${sameGrid(l, st.grid) ? " is-on" : ""}`}
+                    onClick={() => applyGrid(l)}
+                    aria-label={`template ${l.name}`}
+                  >
+                    <GridThumb layout={l} />
+                    {l.name}
+                  </button>
+                  {del && (
+                    <button type="button" className="fe-chip__del" aria-label={`delete template ${l.name}`} onClick={del}>
+                      ✕
+                    </button>
+                  )}
+                </span>
+              ))
+            : freeChips.map(({ t, del }) => (
+                <span key={t.id} className="fe-chip-wrap">
+                  <button type="button" className="fe-chip" onClick={() => applyTemplate(t)} aria-label={`template ${t.name}`}>
+                    <Thumb tpl={t} />
+                    {t.name}
+                  </button>
+                  {del && (
+                    <button type="button" className="fe-chip__del" aria-label={`delete template ${t.name}`} onClick={del}>
+                      ✕
+                    </button>
+                  )}
+                </span>
+              ))}
         </div>
-        <button type="button" className="fe-btn fe-btn--icon" aria-label="cancel edits" onClick={stop}>
-          ✕
-        </button>
-        <button type="button" className="fe-btn fe-btn--go" aria-label="confirm layout" onClick={confirm}>
-          ✓
-        </button>
+        <div className="fe-actions">
+          <button type="button" className="fe-btn fe-btn--undo" aria-label="undo" disabled={!st.history.length} onClick={undo}>
+            ↶ Undo
+          </button>
+          <button type="button" className="fe-btn" aria-label="cancel" onClick={stop}>
+            Cancel
+          </button>
+          <button type="button" className="fe-btn fe-btn--go" aria-label="done" onClick={confirm}>
+            ✓ Done
+          </button>
+        </div>
       </div>
     </div>
+  );
+}
+
+/** A tiny picture of a grid layout, tiles in seat colours. */
+export function GridThumb({ layout, w = 22, h = 34 }: { layout: LayoutConfig; w?: number; h?: number }) {
+  const g = 1.2;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden="true" className="fe-thumb">
+      {layout.placements.map((p, i) => {
+        const x = ((p.col - 1) / layout.cols) * w;
+        const y = ((p.row - 1) / layout.rows) * h;
+        const pw = (p.colSpan / layout.cols) * w;
+        const ph = (p.rowSpan / layout.rows) * h;
+        return <rect key={i} x={x + g / 2} y={y + g / 2} width={pw - g} height={ph - g} rx={2} fill={colorForSeat(i)} />;
+      })}
+    </svg>
   );
 }
 

@@ -9,7 +9,6 @@ import { CenterMenu } from "./components/CenterMenu";
 import { PlayerDetail } from "./components/PlayerDetail";
 import { NewGameScreen } from "./components/NewGameScreen";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { LayoutPicker } from "./components/LayoutPicker";
 import { DicePanel } from "./components/DicePanel";
 import { ArcadeSeatPicker } from "./components/ArcadeSeatPicker";
 import { RandomFirstOverlay } from "./components/RandomFirstOverlay";
@@ -20,7 +19,6 @@ type Overlay =
   | null
   | "newgame"
   | "settings"
-  | "layout"
   | "dice"
   | "random"
   | "arcade"
@@ -123,7 +121,6 @@ export default function App() {
       <CenterMenu
         onNewGame={() => setOverlay("newgame")}
         onSettings={() => setOverlay("settings")}
-        onLayouts={() => setOverlay("layout")}
         onDice={() => setOverlay("dice")}
         onArcade={() => setOverlay("arcade")}
         onRandomFirst={() => setOverlay("random")}
@@ -148,7 +145,6 @@ export default function App() {
       {overlay === "settings" && (
         <SettingsPanel onClose={() => setOverlay(null)} />
       )}
-      {overlay === "layout" && <LayoutPicker onClose={() => setOverlay(null)} />}
       {overlay === "log" && <LogPanel onClose={() => setOverlay(null)} />}
       {overlay === "dice" && <DicePanel onClose={() => setOverlay(null)} />}
       {overlay === "arcade" && (

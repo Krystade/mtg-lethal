@@ -28,13 +28,14 @@ import { advanceTurn, tickTurn } from "../game/turn";
 import { colorForSeat, freeSeatColour, freeSeatColours } from "../layout/colors";
 import { playerColour } from "../layout/looks";
 import { clockwiseSeatOrder } from "../layout/order";
-import { defaultLayoutFor, isStandardGrid } from "../layout/presets";
+import { defaultLayoutFor } from "../layout/presets";
 import { layoutCoversSeats } from "../layout/validate";
 import { uid } from "../util/id";
 import { isBetter } from "../game/arcade/bests";
 import { appendLog, diffGame, sanitizeLog } from "../game/log";
-import { giveSticker, placeSticker, remapStickers, sanitizeStickers } from "../game/stickers";
+import { giveSticker, localSpot, placeSticker, remapStickers, sanitizeStickers, tileSpot } from "../game/stickers";
 import { gapFree } from "../layout/table";
+import { sameGrid } from "../layout/arrange";
 import { sanitizeFreeform, sanitizeTemplates, templateKey, toTemplateSeats, BUILTIN_TEMPLATES } from "../layout/freeform";
 import type { Rotation } from "./types";
 import { STORAGE_KEY, migrateStorageKey } from "./storageKey";
@@ -255,11 +256,10 @@ export interface StoreState {
   // layout
   applyLayout: (layout: LayoutConfig) => void;
   /**
-   * Settings' "Basic grid": the standard grid for the players at the table.
-   * Nobody is added or removed, and each sticker stays on its holder's tile.
+   * Save a grid from the Layout screen to "your layouts"; returns the name it
+   * was saved under, or the name of the identical one already there.
    */
-  applyBasicGrid: () => void;
-  saveCustomLayout: (name: string) => void;
+  saveCustomLayout: (layout: LayoutConfig) => { name: string; fresh: boolean };
   /** Move seats on the board mid-game: players, counters and turn stay. */
   rearrangeSeats: (layout: LayoutConfig) => void;
   /** Turn one seat to face another edge of the table. */
@@ -792,16 +792,6 @@ export const useStore = create<StoreState>()(
           };
         }),
 
-      applyBasicGrid: () =>
-        set((s) => {
-          const old = s.game.layout;
-          if (isStandardGrid(old)) return {};
-          const layout = defaultLayoutFor(s.game.players.length);
-          return {
-            game: { ...s.game, layout, stickers: remapStickers(s.game.stickers, old, layout) },
-          };
-        }),
-
       rearrangeSeats: (layout) =>
         set((s) => {
           const ids = s.game.players.map((p) => p.id);
@@ -842,20 +832,26 @@ export const useStore = create<StoreState>()(
           return { game: { ...s.game, layout, stickers } };
         }),
 
-      saveCustomLayout: (name) =>
-        set((s) => {
-          const snapshot: LayoutConfig = {
-            ...s.game.layout,
-            id: `custom-${uid()}`,
-            name: name || "My layout",
-            builtIn: false,
-            placements: s.game.layout.placements.map((p) => ({ ...p })),
-          };
-          return {
-            customLayouts: [...s.customLayouts, snapshot],
-            game: { ...s.game, layout: snapshot },
-          };
-        }),
+      saveCustomLayout: (layout) => {
+        const s = get();
+        const n = layout.placements.length;
+        const same = s.customLayouts.find((l) => !l.cells && l.placements.length === n && sameGrid(l, layout));
+        if (same) return { name: same.name, fresh: false };
+        const names = new Set(s.customLayouts.map((l) => l.name));
+        let k = 1;
+        while (names.has(`${n}P grid · #${k}`)) k++;
+        const name = `${n}P grid · #${k}`;
+        const { cells: _c, seats: _s, ...grid } = layout;
+        const snapshot: LayoutConfig = {
+          ...grid,
+          id: `custom-${uid()}`,
+          name,
+          builtIn: false,
+          placements: layout.placements.map((p) => ({ ...p })),
+        };
+        set((st) => ({ customLayouts: [...st.customLayouts, snapshot] }));
+        return { name, fresh: true };
+      },
 
       deleteCustomLayout: (id) =>
         set((s) => ({
@@ -905,10 +901,16 @@ export const useStore = create<StoreState>()(
             return fresh;
           });
           const idSet = new Set(ids);
+          // Each sticker keeps its spot on its holder's tile, wherever that went.
           const stickers = sanitizeStickers(
             s.game.stickers
               .filter((st) => idMap.has(st.holder))
-              .map((st) => ({ ...st, holder: idMap.get(st.holder)! })),
+              .map((st) => {
+                const to = idMap.get(st.holder)!;
+                const { lx, ly } = localSpot(s.game.layout, st.holder, st.x, st.y);
+                const at = tileSpot(layout, to, Math.max(0, Math.min(1, lx)), Math.max(0, Math.min(1, ly)));
+                return { ...st, holder: to, x: at.x, y: at.y };
+              }),
             idSet,
             layout,
           );

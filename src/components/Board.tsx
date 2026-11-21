@@ -4,7 +4,7 @@ import { PlayerTile } from "./PlayerTile";
 import { StickerLayer } from "./StickerLayer";
 import { SeatDragLayer } from "./SeatDragLayer";
 import { takeSlide } from "./seatDrag";
-import { FreeformEditor } from "./FreeformEditor";
+import { LayoutEditor } from "./LayoutEditor";
 import { useLayoutEdit } from "./layoutEdit";
 import { polyGeoms } from "../layout/freeform";
 
@@ -93,7 +93,7 @@ export function Board({ onOpenDetail, arcadeSeats, onCloseArcade }: Props) {
       ))}
       <StickerLayer boardRef={ref} />
       <SeatDragLayer boardRef={ref} />
-      {editing && size.W > 0 && <FreeformEditor W={size.W} H={size.H} />}
+      {editing && size.W > 0 && <LayoutEditor W={size.W} H={size.H} gap={ref.current ? parseFloat(getComputedStyle(ref.current).rowGap) || 8 : 8} />}
     </div>
   );
 }

@@ -9,7 +9,6 @@ import { freeStickerSpot } from "./stickerSpot";
 interface Props {
   onNewGame: () => void;
   onSettings: () => void;
-  onLayouts: () => void;
   onDice: () => void;
   onArcade: () => void;
   onRandomFirst: () => void;
@@ -20,7 +19,6 @@ interface Props {
 export function CenterMenu({
   onNewGame,
   onSettings,
-  onLayouts,
   onDice,
   onArcade,
   onRandomFirst,
@@ -163,11 +161,8 @@ export function CenterMenu({
               <button className="sheet__row" onClick={act(onLog)}>
                 ☰ Game log
               </button>
-              <button className="sheet__row" onClick={act(onLayouts)}>
-                ▦ Layout
-              </button>
               <button className="sheet__row" onClick={act(startEdit)}>
-                ✥ Edit layout
+                ▦ Layout
               </button>
               <button className="sheet__row" onClick={act(onSettings)}>
                 ⚙ Settings

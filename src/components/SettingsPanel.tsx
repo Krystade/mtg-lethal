@@ -3,7 +3,6 @@ import { useStore } from "../state/store";
 import { formatClock } from "../util/format";
 import { PLAYER_COLORS, textOn } from "../layout/colors";
 import { playBeep } from "../util/alert";
-import { isStandardGrid } from "../layout/presets";
 import type { CSSProperties } from "react";
 
 const BUDGET_PRESETS = [120, 180, 300, 420, 600];
@@ -22,9 +21,6 @@ export function SettingsPanel({ onClose }: Props) {
   const settings = useStore((s) => s.settings);
   const update = useStore((s) => s.updateSettings);
   const resetTurnTimer = useStore((s) => s.resetTurnTimer);
-  const applyBasicGrid = useStore((s) => s.applyBasicGrid);
-  const playerCount = useStore((s) => s.game.players.length);
-  const onBasicGrid = useStore((s) => isStandardGrid(s.game.layout));
 
   // The preview plays the real effect on a real tile, so what is judged here
   // is what a game shows. Alternates damage and heal, at the heaviest tier --
@@ -67,18 +63,6 @@ export function SettingsPanel({ onClose }: Props) {
           </button>
         </div>
         <div className="panel__body">
-          <section className="panel__section">
-            <h3>Layout</h3>
-            <button className="linkbtn" onClick={applyBasicGrid} disabled={onBasicGrid}>
-              Basic grid
-            </button>
-            <p className="panel__note">
-              {onBasicGrid
-                ? "Already on the standard grid."
-                : `Reset the layout to the standard grid for ${playerCount} player${playerCount === 1 ? "" : "s"}.`}
-            </p>
-          </section>
-
           <section className="panel__section">
             <h3>Turn timer</h3>
             <label className="toggle">

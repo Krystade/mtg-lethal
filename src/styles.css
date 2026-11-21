@@ -1265,186 +1265,6 @@ input[type="text"] {
   margin-top: 6px;
 }
 
-/* ---------- tabs ---------- */
-.tabs {
-  display: flex;
-  gap: 6px;
-  padding: 8px 16px 0;
-  background: var(--panel-2);
-}
-
-.tabs__tab {
-  flex: 1;
-  padding: 11px;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  border-radius: 10px 10px 0 0;
-  font-weight: 700;
-}
-
-.tabs__tab.is-on {
-  background: var(--panel);
-  color: #fff;
-}
-
-/* ---------- presets ---------- */
-.preset-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.preset {
-  background: var(--panel-2);
-  border: none;
-  border-radius: 12px;
-  padding: 8px;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.preset--custom {
-  position: relative;
-  padding: 0;
-  background: transparent;
-}
-
-.preset--custom > button:first-child {
-  width: 100%;
-  background: var(--panel-2);
-  border: none;
-  border-radius: 12px;
-  padding: 8px;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.preset__del {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.6);
-  border: none;
-  color: #fff;
-  border-radius: 8px;
-  width: 24px;
-  height: 24px;
-}
-
-.mini {
-  width: 100%;
-  aspect-ratio: 3 / 4;
-  display: grid;
-  gap: 2px;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.mini__cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(0, 0, 0, 0.4);
-  font-size: 0.7rem;
-}
-
-/* ---------- layout editor ---------- */
-.editor {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.editor__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--panel-2);
-  border-radius: 10px;
-  padding: 4px;
-}
-
-.stepper button {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: #2f2f33;
-  color: #fff;
-  border-radius: 8px;
-  font-size: 1.1rem;
-}
-
-.palette {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.palette__swatch {
-  width: 46px;
-  height: 46px;
-  border-radius: 10px;
-  border: 2px solid transparent;
-  color: #fff;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.palette__swatch.is-on {
-  border-color: #fff;
-}
-
-.palette__erase {
-  background: #2a2a2e;
-  font-size: 0.72rem;
-}
-
-.editor__grid {
-  display: grid;
-  gap: 4px;
-  aspect-ratio: 3 / 4;
-  max-height: 26vh;
-  margin: 0 auto;
-}
-
-.editor__cell {
-  border: none;
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Sticky so Apply / Save stay reachable no matter how tall the editor gets. */
-.editor__error {
-  color: #ff6b81;
-  font-size: 0.85rem;
-  font-weight: 700;
-  margin: 4px 0 0;
-}
-
 /* ---------- dice ---------- */
 .dice__result {
   font-size: 4rem;
@@ -1521,21 +1341,6 @@ input[type="text"] {
   outline: 2px solid rgba(255, 255, 255, 0.65);
   outline-offset: 2px;
   border-radius: 4px;
-}
-
-.editor__actions {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  gap: 8px;
-  padding: 10px 0 4px;
-  margin-top: 4px;
-  background: var(--panel);
-  border-top: 1px solid var(--row);
-}
-
-.editor__actions .bigbtn {
-  margin-top: 0;
 }
 
 /* ---------- motion ---------- */
@@ -3924,18 +3729,12 @@ input[type="text"] {
   stroke: #ff1140;
   stroke-width: 8px;
 }
-.mini--poly {
-  display: block;
-  background: #000;
-}
-.layout-edit-btn {
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-/* ---------- freeform editor ---------- */
+/* ---------- the Layout screen (grid and freeform) ---------- */
+/* Room above the board for the mode switch and Players, below for the
+   template strip and Undo / Cancel / Done. */
 .app--editing .board {
-  height: calc(100% - 62px);
+  margin-top: 58px;
+  height: calc(100% - 58px - 116px);
 }
 .board--editing > .tile,
 .board--editing > .stickers {
@@ -4110,25 +3909,6 @@ input[type="text"] {
 }
 .fe-guide--x { top: -2px; bottom: -2px; width: 2px; margin-left: -1px; }
 .fe-guide--y { left: -2px; right: -2px; height: 2px; margin-top: -1px; }
-.fe-fab {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  border: 0;
-  background: var(--fe-go);
-  color: #03230e;
-  font-size: 36px;
-  font-weight: 800;
-  line-height: 1;
-  padding: 0 0 3px;
-  box-shadow: 0 0 0 3px #000, 0 8px 22px rgba(0, 0, 0, 0.6);
-  z-index: 8;
-  display: grid;
-  place-items: center;
-}
 .fe-toast {
   position: absolute;
   left: 50%;
@@ -4147,17 +3927,6 @@ input[type="text"] {
   overflow: hidden;
   text-overflow: ellipsis;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-}
-.fe-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
-  height: 54px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  touch-action: manipulation;
 }
 .fe-btn {
   height: 46px;
@@ -4219,33 +3988,147 @@ input[type="text"] {
 }
 .fe-thumb { display: block; border-radius: 4px; background: #000; flex: 0 0 auto; }
 
-/* Players − N + in the layout picker, so a template's seat count is not the
-   last word. */
-.players-row {
+.fe-top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  height: 50px;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px 10px;
-  margin: 8px 0 2px;
+  gap: 8px;
+  touch-action: manipulation;
 }
-
-.players-row__label {
-  font-weight: 800;
+.fe-seg {
+  display: flex;
+  height: 46px;
+  padding: 3px;
+  border-radius: 14px;
+  background: #202024;
+  flex: 1 1 auto;
+  max-width: 260px;
+  min-width: 0;
 }
-
-.players-row .stepper span {
-  min-width: 1.4em;
-  text-align: center;
+.fe-seg__opt {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
   font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+.fe-seg__opt.is-on {
+  background: #fff;
+  color: #000;
+}
+.fe-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.fe-step .fe-btn {
+  font-size: 26px;
+  width: 44px;
+  min-width: 44px;
+}
+.fe-step__n {
+  min-width: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-
-.players-row .stepper button:disabled {
-  opacity: 0.35;
+.fe-step__n small {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+.fe-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  touch-action: manipulation;
+}
+.fe-bottom .fe-chips {
+  padding: 4px 4px 0 0;
+}
+.fe-chip.is-on {
+  border-color: #fff;
+  box-shadow: inset 0 0 0 1px #fff;
+}
+.fe-chip--save {
+  background: #202024;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.4);
+  padding: 0 12px;
+  gap: 4px;
+}
+.fe-chip--save span {
+  font-size: 18px;
+  line-height: 1;
+}
+.fe-actions {
+  display: flex;
+  gap: 6px;
+  height: 50px;
+  align-items: center;
+}
+.fe-actions .fe-btn {
+  flex: 1 1 0;
+  font-size: 17px;
+}
+.fe-actions .fe-btn--go {
+  flex-grow: 1.4;
 }
 
-.players-row__note {
-  flex-basis: 100%;
-  margin: 0;
+/* Grid mode: the tiles themselves, dragged onto each other to swap. */
+.ge-tile {
+  position: absolute;
+  border-radius: 22px;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: inset 0 0 0 2.5px rgba(255, 255, 255, 0.85), inset 0 0 0 4.5px rgba(0, 0, 0, 0.35);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  z-index: 2;
 }
+.is-live .ge-tile.is-held {
+  transition: none;
+  z-index: 6;
+  opacity: 0.9;
+  box-shadow: inset 0 0 0 3px #fff, 0 14px 36px rgba(0, 0, 0, 0.75);
+}
+.ge-tile.is-target {
+  box-shadow: inset 0 0 0 5px #fff, inset 0 0 0 9px rgba(0, 0, 0, 0.45);
+}
+.ge-tile[data-face]::after {
+  content: "";
+  position: absolute;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.ge-tile[data-face="bottom"]::after { left: 30%; right: 30%; bottom: 8px; height: 6px; }
+.ge-tile[data-face="top"]::after { left: 30%; right: 30%; top: 8px; height: 6px; }
+.ge-tile[data-face="left"]::after { top: 30%; bottom: 30%; left: 8px; width: 6px; }
+.ge-tile[data-face="right"]::after { top: 30%; bottom: 30%; right: 8px; width: 6px; }
+.ge-tile .fe-badge {
+  width: 40px;
+  height: 40px;
+}
+.ge-tile .fe-badge--del { top: 8px; left: 8px; }
+.ge-tile .fe-badge--rot { top: auto; bottom: 8px; right: 8px; }
