@@ -40,6 +40,12 @@ export interface LookStyle {
    * background with no orientation.
    */
   directional?: boolean;
+  /**
+   * The layers carry a hole over the life total (see numberHole): LookLayers
+   * measures the number and the style's CSS masks every layer clear there.
+   * Only such a style may paint flashColours.
+   */
+  numberHole?: boolean;
 }
 
 export const HUES: Hue[] = [
@@ -63,7 +69,7 @@ export const LOOK_STYLES: LookStyle[] = [
   { id: "pulse", name: "Pulse", animated: true, layers: 2 },
   { id: "smoke", name: "Smoke", animated: true, layers: 1 },
   { id: "marble", name: "Marble", animated: true, layers: 1 },
-  { id: "glitter", name: "Glitter", animated: true, layers: 2 },
+  { id: "glitter", name: "Glitter", animated: true, layers: 4, numberHole: true },
   { id: "hearts", name: "Hearts", animated: true, layers: 7, directional: true },
   { id: "foil", name: "Foil", animated: true, layers: 1 },
   { id: "fissure", name: "Fissure", animated: true, layers: 2 },
@@ -138,8 +144,15 @@ export interface ResolvedLook {
   layers: number;
   /** The layers turn with the seat (see LookStyle.directional). */
   directional: boolean;
-  /** Every colour this look actually paints, for the contrast test. */
+  /** The layers are masked clear over the life total (LookStyle.numberHole). */
+  numberHole: boolean;
+  /** Every colour this look paints where the life total can sit, for the contrast test. */
   paintedColours: string[];
+  /**
+   * Colours painted ONLY in layers masked clear over the life total, so they
+   * are exempt from the contrast clamp. Empty unless numberHole.
+   */
+  flashColours: string[];
 }
 
 /**
@@ -216,28 +229,77 @@ export function reachToward(from: string, toward: string, base: string): string 
 }
 
 /**
- * Glitter's colours: the ground it is scattered on, the speck of the static
- * grain, and the glint of the winking sparkles.
+ * Glitter's paint, in two groups with two different promises.
  *
- * The glint is the brightest the seat can afford. On a dark-ink hue that is
- * white, and the ground stays the base. On a white-ink hue the base already
- * sits near the lightest the white number tolerates, so a glint can barely
- * outshine it -- glitter on plain blue all but vanished. There the ground
- * deepens instead, which only gains contrast, and the glint stands out from
- * it. The speck is whichever of the shadow and the glint stands further from
- * the ground: dark on gold, where light specks would melt into the base;
- * light on a deepened blue. Measured, not listed, so a custom colour gets the
- * same choice.
+ * `field` is the bed of facets scattered over the whole tile, the ground
+ * behind the life total included, so every colour in it (and the sheen's two
+ * ends) is held inside the contrast clamp like any other painted colour. On a
+ * white-ink hue the ground deepens first, which only gains contrast, so a
+ * facet the seat can afford still shows lighter than its bed.
+ *
+ * `flash` is the bright flecks and star glints: white, a pale tint of the hue
+ * and two iridescent neighbours either side of it on the wheel. These are
+ * what make it glitter rather than grain, and on most hues they are far too
+ * bright to sit behind a white number. So they are painted only in the
+ * masked layers, which are fully transparent over the number (NUMBER_HOLE_CLEAR),
+ * and never under it.
  */
 export function glitterInks(
   base: string,
   lo: string,
   hi: string,
-): { ground: string; speck: string; glint: string } {
-  const glint = reachToward(hi, "#ffffff", base);
-  const ground = textOn(base) === "#ffffff" ? shift(base, -0.24) : base;
-  const speck = contrastRatio(lo, ground) > contrastRatio(glint, ground) ? lo : glint;
-  return { ground, speck, glint };
+): { ground: string; sheenLo: string; sheenHi: string; field: string[]; flash: string[] } {
+  const whiteInk = textOn(base) === "#ffffff";
+  const ground = whiteInk ? shift(base, -0.2) : base;
+  // The brightest facet the seat can afford, and a hue-shifted one beside it:
+  // a little iridescence in the bed too, not only in the flashes.
+  const light = reachToward(mixOklab(ground, hi, 0.5), "#ffffff", base);
+  const tint = withinInk(rotateHue(mixOklab(ground, light, 0.7), 14, 0.05), base);
+  const mid = mixOklab(ground, light, 0.5);
+  // A shadow facet, kept close to the ground and in the hue: black-brown
+  // specks were what made the first version read as dirt.
+  const shade = mixOklab(ground, reachToward(ground, mixOklab(lo, "#000000", 0.2), base), 0.35);
+  // The sheen runs along the black-white axis from the ground, so every
+  // channel moves the same way and the gradient between its ends stays as
+  // legible as its ends.
+  const sheenHi = mixOklab(ground, reachToward(ground, "#ffffff", base), 0.6);
+  const sheenLo = whiteInk ? shift(ground, -0.1) : mixOklab(ground, reachToward(ground, "#000000", base), 0.5);
+  const flash = [
+    "#ffffff",
+    mixOklab(hi, "#ffffff", 0.62),
+    mixOklab(rotateHue(hi, 48, 0.25), "#ffffff", 0.5),
+    mixOklab(rotateHue(hi, -56, 0.25), "#ffffff", 0.5),
+  ];
+  // Weighted by repetition: mostly light-catching facets, few in shadow.
+  return { ground, sheenLo, sheenHi, field: [shade, mid, mid, light, light, light, tint], flash };
+}
+
+/**
+ * How much of the number hole's ellipse is fully clear. The masked layers are
+ * transparent out to this fraction of the hole's outer radius and only then
+ * fade in; numberHole() sizes the clear part to contain the life total's box.
+ */
+export const NUMBER_HOLE_CLEAR = 0.8;
+
+/**
+ * Where the masked layers' hole goes, in px within the layer: centred on the
+ * life total's laid-out text box (screen space, so a seat's rotation is
+ * already in it), with a clear ellipse that circumscribes that box plus
+ * `pad` -- an ellipse through the box's corners has semi-axes sqrt(2) times
+ * the half-sides -- and an outer fade ring beyond it.
+ */
+export function numberHole(
+  layer: { left: number; top: number },
+  text: { left: number; top: number; width: number; height: number },
+  pad: number,
+): { x: number; y: number; rx: number; ry: number } {
+  const clear = (half: number) => (half + pad) * Math.SQRT2;
+  return {
+    x: text.left + text.width / 2 - layer.left,
+    y: text.top + text.height / 2 - layer.top,
+    rx: clear(text.width / 2) / NUMBER_HOLE_CLEAR,
+    ry: clear(text.height / 2) / NUMBER_HOLE_CLEAR,
+  };
 }
 
 /**
@@ -278,38 +340,77 @@ function starPath(x: number, y: number, r: number): string {
 }
 
 /**
- * A sparse tile of sparkles: mostly 1-2px dots, plus a few four-point stars.
+ * A tile of glitter facets: small flat squares, each turned to its own angle
+ * and cut in a colour drawn from `colours`, the way flakes of craft glitter
+ * lie at random and each catches the light differently.
  *
- * Two of these at prime sizes (97px and 131px) repeat on a common period of
- * 12707px, so the eye never finds the grid. Positions are snapped to the pixel
- * centre so a 1px dot stays one crisp pixel rather than a grey smudge across
- * four.
+ * `r` is a facet's half-diagonal, skewed toward the small end so most flakes
+ * are fine and a few are chunky. Every facet sits wholly inside the tile, so
+ * the repeat cuts none in half. Tiles at prime sizes repeat on a long common
+ * period, so the eye never finds the grid.
  */
-export function sparkleDataUri(
+export function facetDataUri(
   size: number,
   seed: number,
-  dots: number,
-  stars: number,
-  speck: string,
-  glint: string,
+  count: number,
+  colours: string[],
+  rMin: number,
+  rMax: number,
 ): string {
+  const key = [size, seed, count, rMin, rMax, ...colours].join("|");
+  const hit = baked.get(key);
+  if (hit) return hit;
   const rand = seeded(seed);
+  const p = (n: number) => n.toFixed(2);
   let body = "";
-  for (let i = 0; i < dots; i++) {
-    const r = rand() < 0.65 ? 0.5 : 1;
-    const x = Math.floor(2 + rand() * (size - 4)) + 0.5;
-    const y = Math.floor(2 + rand() * (size - 4)) + 0.5;
-    body += `<circle cx='${x}' cy='${y}' r='${r}' fill='${rand() < 0.55 ? glint : speck}'/>`;
+  for (let i = 0; i < count; i++) {
+    const r = rMin + (rMax - rMin) * rand() ** 2;
+    const a = rand() * (Math.PI / 2);
+    const x = r + 0.5 + rand() * (size - 2 * r - 1);
+    const y = r + 0.5 + rand() * (size - 2 * r - 1);
+    const fill = colours[Math.floor(rand() * colours.length)];
+    const pts = [0, 1, 2, 3]
+      .map((k) => `${p(x + r * Math.cos(a + (k * Math.PI) / 2))} ${p(y + r * Math.sin(a + (k * Math.PI) / 2))}`)
+      .join(" ");
+    body += `<polygon points='${pts}' fill='${fill}'/>`;
   }
+  return bake(key, svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${body}</svg>`));
+}
+
+/**
+ * Baked glitter tiles by their inputs. Every tile render resolves its look,
+ * and a facet tile is hundreds of polygons, so each is built once per colour
+ * set. Bounded: a colour wheel can mint any number of colour sets.
+ */
+const baked = new Map<string, string>();
+function bake(key: string, uri: string): string {
+  if (baked.size >= 96) baked.clear();
+  baked.set(key, uri);
+  return uri;
+}
+
+/**
+ * A sparse tile of star glints: a soft halo, a long four-point star, a short
+ * one turned 45 degrees across it, and a white core -- the flare a facet
+ * throws when it catches the light square on. Kept inside the tile.
+ */
+export function glintDataUri(size: number, seed: number, stars: number, colour: string): string {
+  const rand = seeded(seed);
+  let body =
+    `<defs><radialGradient id='h'><stop offset='0' stop-color='${colour}' stop-opacity='0.5'/>` +
+    `<stop offset='1' stop-color='${colour}' stop-opacity='0'/></radialGradient></defs>`;
   for (let i = 0; i < stars; i++) {
-    const r = 3 + rand() * 2;
+    const r = 4.5 + rand() * 4;
     const x = r + 1 + rand() * (size - 2 * r - 2);
     const y = r + 1 + rand() * (size - 2 * r - 2);
-    body += `<path d='${starPath(x, y, r)}' fill='${glint}'/>`;
+    const f = (n: number) => n.toFixed(1);
+    body +=
+      `<circle cx='${f(x)}' cy='${f(y)}' r='${f(r * 0.8)}' fill='url(#h)'/>` +
+      `<path d='${starPath(x, y, r)}' fill='${colour}'/>` +
+      `<path d='${starPath(x, y, r * 0.45)}' fill='${colour}' transform='rotate(45 ${f(x)} ${f(y)})'/>` +
+      `<circle cx='${f(x)}' cy='${f(y)}' r='0.9' fill='#ffffff'/>`;
   }
-  return svgUrl(
-    `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${body}</svg>`,
-  );
+  return svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${body}</svg>`);
 }
 
 /** How see-through a heart is. Baked into the fill so opacity stays free to fade it. */
@@ -635,13 +736,22 @@ function build(
   // Colours a style paints beyond base, lo and hi. Each one is derived inside
   // the contrast clamp and listed here so looks.test.ts checks it.
   const extra: string[] = [];
+  // Colours painted only behind a number hole, outside the clamp.
+  const flash: string[] = [];
   if (style.id === "glitter") {
-    const { ground, speck, glint } = glitterInks(base, lo, hi);
-    vars["--look-ground"] = ground;
-    vars["--look-grain"] = grainDataUri(speck, 0.7, 7);
-    vars["--look-spark-a"] = sparkleDataUri(97, 3, 11, 3, speck, glint);
-    vars["--look-spark-b"] = sparkleDataUri(131, 8, 17, 3, speck, glint);
-    extra.push(ground, speck, glint);
+    const g = glitterInks(base, lo, hi);
+    vars["--look-ground"] = g.ground;
+    vars["--look-sheen-lo"] = g.sheenLo;
+    vars["--look-sheen-hi"] = g.sheenHi;
+    // The bed: two static facet tiles at prime sizes, under everything.
+    vars["--look-bed-a"] = facetDataUri(61, 5, 300, g.field, 0.4, 1.3);
+    vars["--look-bed-b"] = facetDataUri(83, 12, 420, g.field, 0.35, 1.0);
+    // The flashes: two winking fleck tiles and a tile of star glints.
+    vars["--look-flash-a"] = facetDataUri(97, 3, 190, g.flash, 0.45, 1.8);
+    vars["--look-flash-b"] = facetDataUri(127, 8, 290, g.flash, 0.35, 1.2);
+    vars["--look-glints"] = glintDataUri(173, 21, 4, g.flash[0]);
+    extra.push(g.ground, g.sheenLo, g.sheenHi, ...g.field);
+    flash.push(...g.flash);
   }
   if (style.id === "hearts") {
     const heart = heartInk(base, lo, hi);
@@ -694,7 +804,9 @@ function build(
     animated: style.animated,
     layers: style.layers,
     directional: style.directional === true,
+    numberHole: style.numberHole === true,
     paintedColours: style.id === "solid" ? [base] : [base, lo, hi, ...extra],
+    flashColours: flash,
   };
 }
 
@@ -729,7 +841,9 @@ export function resolveLook(
     animated: false,
     layers: 0,
     directional: false,
+    numberHole: false,
     paintedColours: [color],
+    flashColours: [],
   };
   if (!lookId) return fallback;
   const parsed = parseLookId(lookId);
